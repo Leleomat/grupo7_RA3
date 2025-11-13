@@ -39,3 +39,32 @@
 
 # debug information files
 *.dwo
+
+# Visual Studio
+.vs/
+*.sln.docstates
+*.suo
+*.user
+*.pdb
+*.obj
+*.ilk
+*.lib
+*.ncb
+*.tlog
+*.vs
+*.log
+*.tmp
+*.env
+*.dat
+*.temp
+
+*.VC.db
+ipch/
+*.opensdf
+Release/
+
+# Build folders
+x64/
+Debug/
+*.idb
+*.exe.recipe
