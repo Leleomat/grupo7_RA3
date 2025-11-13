@@ -69,3 +69,4 @@ x64/
 Debug/
 *.idb
 *.exe.recipe
+build/
