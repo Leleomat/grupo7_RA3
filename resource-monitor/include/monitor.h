@@ -23,6 +23,17 @@ struct StatusProcesso{
     unsigned long wchar;
 };
 
+struct calculoMedicao{
+
+    double usoCPU;
+    double usoCPUGlobal;
+    double taxaLeituraDisco;
+    double taxaLeituraTotal;
+    double taxaEscritaDisco;
+    double taxaEscritaTotal;
+    
+};
+
 bool processoExiste(int PID);
 
 bool temPermissao(int PID);
