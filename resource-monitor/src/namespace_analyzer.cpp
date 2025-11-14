@@ -263,7 +263,7 @@ void demonstrarIsolamento() {
 	const int STACK_SIZE = 1024 * 1024; // 1MB de stack
 	static char child_stack[STACK_SIZE]; // Stack para o novo processo
 
-	std::cout << "\n\033[1;33m=== Verificando Visibilidade de Recursos (PID, NET e Filesystems) ===\033[0m\n";
+	std::cout << "\n\033[1;33m====== Verificando Visibilidade de Recursos (PID, NET e Filesystems) ======\033[0m\n";
 	std::cout << " Criando processo filho com diferentes namespaces isolados via clone()...\n";
 
 	int flags = CLONE_NEWPID | CLONE_NEWNET | CLONE_NEWNS | SIGCHLD;
