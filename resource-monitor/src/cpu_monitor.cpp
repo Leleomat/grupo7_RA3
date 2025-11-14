@@ -36,7 +36,7 @@ bool coletorCPU(StatusProcesso &medicao){
     //Checa se conseguimos abrir o arquivo em específico, serve para sabermos se o processo não morreu subitamente
     if(!stat.is_open()){
         std::cerr << "Erro: não foi possível abrir " << pathStat << "\n";
-        std::cerr << "O processo encerrou entre verificações...\n";
+        std::cerr << "O processo encerrou entre verificações... ou não possui permissões para o arquivo\n\n";
         return false;
     }
 
@@ -58,15 +58,15 @@ bool coletorCPU(StatusProcesso &medicao){
 
     long tickSegundo = sysconf(_SC_CLK_TCK);
 
-    medicao.utime = (double)userTime/static_cast<double>(tickSegundo);
-    medicao.stime = (double)systemTime/static_cast<double>(tickSegundo);
+    medicao.utime = static_cast<double>(userTime)/static_cast<double>(tickSegundo);
+    medicao.stime = static_cast<double>(systemTime)/static_cast<double>(tickSegundo);
 
     //Coleta de threads e context switches
     std::string pathStatus = "/proc/" + std::to_string(PID) + "/status";
     std::ifstream status(pathStatus);
     if(!status.is_open()){
         std::cerr << "Erro: não foi possível abrir " << pathStatus << "\n";
-        std::cerr << "O processo encerrou entre verificações...\n";
+        std::cerr << "O processo encerrou entre verificações... ou não possui permissões para o arquivo\n\n";
         return false;
     }
 

@@ -21,6 +21,23 @@ struct StatusProcesso{
     unsigned long syscallEscrita;
     unsigned long rchar;
     unsigned long wchar;
+    //Network
+    unsigned long bytesRx;
+    unsigned long bytesTx;
+    unsigned long pacotesRecebidos;
+    unsigned long pacotesEnviados;
+    unsigned int conexoesAtivas;
+};
+
+struct calculoMedicao{
+
+    double usoCPU;
+    double usoCPUGlobal;
+    double taxaLeituraDisco;
+    double taxaLeituraTotal;
+    double taxaEscritaDisco;
+    double taxaEscritaTotal;
+    
 };
 
 bool processoExiste(int PID);
@@ -32,3 +49,5 @@ bool coletorCPU(StatusProcesso &medicao);
 bool coletorMemoria(StatusProcesso &medicao);
 
 bool coletorIO(StatusProcesso &medicao);
+
+bool coletorNetwork(StatusProcesso &medicao);
