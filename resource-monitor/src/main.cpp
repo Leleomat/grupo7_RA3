@@ -11,6 +11,7 @@
 #include <thread>
 #include <chrono>
 #include <unistd.h>
+#include <iomanip>
 
 namespace fs = std::filesystem;
 
@@ -81,8 +82,6 @@ void salvarMedicoesCSV(const StatusProcesso& medicao, const calculoMedicao& calc
       << "\n";
 }
 
-
-
 std::vector<ProcessInfo> listarProcessos() {
     std::vector<ProcessInfo> lista;
 
@@ -118,7 +117,7 @@ int escolherPID() {
     bool valido = false;
 
     do {
-        std::cout << "\nDigite o PID do processo para mover: ";
+        std::cout << "\nDigite o PID do processo: ";
         std::cin >> pid;
 
         // valida entrada
@@ -202,7 +201,7 @@ void resourceProfiler(){
     unsigned int intervalo;
 
     while(true){
-    std::cout << "\nInsira o intervalo de monitoramento, em segundos:";
+    std::cout << "\nInsira o intervalo de monitoramento, em segundos: ";
     std::cin >> intervalo;
     bool flagInsert = true;
 
@@ -224,7 +223,7 @@ void resourceProfiler(){
 
     while (true){
     
-    if(!(coletorCPU(medicaoAtual) && coletorMemoria(medicaoAtual) && coletorIO(medicaoAtual))){
+    if(!(coletorCPU(medicaoAtual) && coletorMemoria(medicaoAtual) && coletorIO(medicaoAtual) && coletorNetwork(medicaoAtual))){
         std::cout << "\nFalha ao acessar dados do processo\n";
         std::cout << "Reiniciando...\n";
         goto entrada;
@@ -268,46 +267,67 @@ void resourceProfiler(){
             resultado.taxaEscritaTotal = taxaEscritaTotal;
             salvarMedicoesCSV(medicaoAtual,resultado);
 
-
-            // --- Impressão formatada dos resultados ---
-            printf("\n=== Medição (PID %d) ===\n", medicaoAtual.PID);
-            printf("Intervalo: %u segundos\n", intervalo);
-
-            // CPU
-            printf("\n-- CPU --\n");
-            printf(" user_time(s): %.6f\n", medicaoAtual.utime);
-            printf(" system_time(s): %.6f\n", medicaoAtual.stime);
-            printf(" Uso por core: %.6f %%\n", usoCPU);
-            printf(" Uso relativo ao sistema: %.6f %%\n", usoCPUGlobal);
-
-            // Threads / Chaveamento de contexto
-            printf("\n-- Threads e Context Switches --\n");
-            printf(" Threads: %u\n", medicaoAtual.threads);
-            printf(" voluntary_ctxt_switches: %u\n", medicaoAtual.contextSwitchfree);
-            printf(" nonvoluntary_ctxt_switches: %u\n", medicaoAtual.contextSwitchforced);
-
-            // Memória
-            printf("\n-- Memória --\n");
-            printf(" VmSize: %lu kB\n", medicaoAtual.vmSize);
-            printf(" VmRSS:  %lu kB\n", medicaoAtual.vmRss);
-            printf(" VmSwap: %lu kB\n", medicaoAtual.vmSwap);
-            printf(" minor faults: %lu\n", medicaoAtual.minfault);
-            printf(" major faults: %lu\n", medicaoAtual.mjrfault);
-
-            // Syscalls
-            printf("\n-- Syscalls --\n");
-            printf(" syscalls de leitura: %lu\n", medicaoAtual.syscallLeitura);
-            printf(" syscalls de escrita: %lu\n", medicaoAtual.syscallEscrita);
-
-            // Taxas (KiB/s)
-            printf("\n-- Taxas (em KiB/s) --\n");
-            printf(" Leitura (disco): %.6f KiB/s\n", taxaleituraDisco);
-            printf(" Leitura (total/rchar): %.6f KiB/s\n", taxaleituraTotal);
-            printf(" Escrita (disco): %.6f KiB/s\n", taxaEscritaDisco);
-            printf(" Escrita (total/wchar): %.6f KiB/s\n", taxaEscritaTotal);
-            printf("\n===============================\n");
-
-            printf("\n\n\nPróxima medição em %u segundos... \n\n\n",intervalo);
+            printf(
+            "================================================================================\n"
+            "|                                MEDIÇÃO (Processo %d)                          \n"
+            "================================================================================\n"
+            "| Intervalo de monitoramento: %3u segundos                                      |\n"
+            "--------------------------------------------------------------------------------\n"
+            "| CPU                      |            |\n"
+            "-----------------------------------------\n"
+            "| user_time(s)             | %-10.6f |\n"
+            "| system_time(s)           | %-10.6f |\n"
+            "| Uso por core (%%)         |  %-9.5f |\n"
+            "| Uso relativo (%%)         |  %-9.5f |\n"
+            "-----------------------------------------\n"
+            "| Threads / ContextSwitch  |            |\n"
+            "-----------------------------------------\n"
+            "| Threads                  | %-10u |\n"
+            "| voluntary_ctxt_switch    | %-10u |\n"
+            "| nonvoluntary_ctxt_switch | %-10u |\n"
+            "-----------------------------------------\n"
+            "| Memória                  |            |\n"
+            "-----------------------------------------\n"
+            "| VmSize (kB)              | %-10lu |\n"
+            "| VmRSS (kB)               | %-10lu |\n"
+            "| VmSwap (kB)              | %-10lu |\n"
+            "| minor faults             | %-10lu |\n"
+            "| major faults             | %-10lu |\n"
+            "-----------------------------------------\n"
+            "| Syscalls                 |            |\n"
+            "-----------------------------------------\n"
+            "| leituras                 | %-10lu |\n"
+            "| escritas                 | %-10lu |\n"
+            "-----------------------------------------\n"
+            "| Taxas (KiB/s)            |            |\n"
+            "-----------------------------------------\n"
+            "| Leitura disco            | %-10.6f |\n"
+            "| Leitura total (rchar)    | %-10.6f |\n"
+            "| Escrita disco            | %-10.6f |\n"
+            "| Escrita total (wchar)    | %-10.6f |\n"
+            "-----------------------------------------\n"
+            "| Network                  |            |\n"
+            "-----------------------------------------\n"
+            "| Bytes enviados (TX)      | %-10lu |\n"
+            "| Bytes recebidos (RX)     | %-10lu |\n"
+            "| Pacotes enviados         | %-10lu |\n"
+            "| Pacotes recebidos        | %-10lu |\n"
+            "| Conexões ativas          | %-10u |\n"
+            "=========================================\n"
+            "| Próxima medição em %3u segundos...    |\n"
+            "=========================================\n\n\n\n\n",
+            medicaoAtual.PID, intervalo,
+            medicaoAtual.utime, medicaoAtual.stime, usoCPU, usoCPUGlobal,
+            medicaoAtual.threads, medicaoAtual.contextSwitchfree, medicaoAtual.contextSwitchforced,
+            medicaoAtual.vmSize, medicaoAtual.vmRss, medicaoAtual.vmSwap,
+            medicaoAtual.minfault, medicaoAtual.mjrfault,
+            medicaoAtual.syscallLeitura, medicaoAtual.syscallEscrita,
+            taxaleituraDisco, taxaleituraTotal, taxaEscritaDisco, taxaEscritaTotal,
+            medicaoAtual.bytesTx, medicaoAtual.bytesRx,
+            medicaoAtual.pacotesEnviados, medicaoAtual.pacotesRecebidos,
+            medicaoAtual.conexoesAtivas,
+            intervalo
+            );
 
         }
         contador++;
@@ -362,5 +382,5 @@ void resourceProfiler(){
 }
 
 int main() {
-    cgroupManager();
+    resourceProfiler();
 }

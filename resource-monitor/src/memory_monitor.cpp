@@ -31,7 +31,7 @@ bool coletorMemoria(StatusProcesso &medicao) {
     //Checa se conseguimos abrir o arquivo em específico, serve para sabermos se o processo não morreu subitamente
     if(!status.is_open()){
         std::cerr << "Erro: não foi possível abrir " << pathStatus << "\n";
-        std::cerr << "O processo encerrou entre verificações...\n";
+        std::cerr << "O processo encerrou entre verificações... ou não possui permissões para o arquivo\n\n";
         return false;
     }
     std::string conteudo;
@@ -49,7 +49,7 @@ bool coletorMemoria(StatusProcesso &medicao) {
     //Checa se conseguimos abrir o arquivo em específico, serve para sabermos se o processo não morreu subitamente
     if(!stat.is_open()){
         std::cerr << "Erro: não foi possível abrir " << pathStat << "\n";
-        std::cerr << "O processo encerrou entre verificações...\n";
+        std::cerr << "O processo encerrou entre verificações... ou não possui permissões para o arquivo\n\n";
         return false;
     }
     unsigned long mjrfault=0, minfault=0;
