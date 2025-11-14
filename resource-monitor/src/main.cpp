@@ -151,11 +151,23 @@ void executarExperimentos() {
 
     int sub = -1;
     do {
-        std::cout << "\n\033[1;36m==================== EXPERIMENTOS CGROUP ====================\033[0m\n";
-        std::cout << " 1. Experimento 3 – Throttling de CPU\n";
-        std::cout << " 2. Experimento 4 – Limite de Memória\n";
-        std::cout << " 0. Voltar\n";
+		std::cout << "\n\033[1;36m======================= EXPERIMENTOS =======================\033[0m\n";
+        std::cout << "\n\033[1;33m========================== CGROUP ==========================\033[0m\n";
+		std::cout << "\033[1m"; // deixa opções em negrito
+        std::cout << " 1. Experimento nº3 – Throttling de CPU\n";
+        std::cout << " 2. Experimento nº4 – Limite de Memória\n";
+		std::cout << "\033[0m";
+		std::cout << "\n\033[1;33m======================== NAMESPACE =========================\033[0m\n";
+		std::cout << "\033[1m"; // deixa opções em negrito
+		std::cout << " 3. Experimento nº2 - Isolamento via Namespaces\n";
+		std::cout << "\033[0m";
+		std::cout << "\n\033[1;33m======================== PROFILER ==========================\033[0m\n";
+		std::cout << "\033[1m"; // deixa opções em negrito
+		std::cout << " 4. Experimento nº1 - Overhead de Monitoramento\n";
+		std::cout << " 5. Experimento nº5 - Limitação de I/O\n\n";
+        std::cout << " 0. Voltar ao menu principal.\n";
         std::cout << " Escolha: ";
+		std::cout << "\033[0m";
         std::cin >> sub;
 
         if (sub == 1) {
@@ -164,6 +176,15 @@ void executarExperimentos() {
         else if (sub == 2) {
             manager.runMemoryLimitExperiment();
         }
+		else if (sub == 3) {
+			executarExperimentoIsolamento();
+		}
+		else if (sub == 4) {
+			std::cout << "OPÇÃO AINDA NÃO IMPLEMENTADA.\n";
+		}
+		else if (sub == 5) {
+			std::cout << "OPÇÃO AINDA NÃO IMPLEMENTADA.\n";
+		}
         else if (sub != 0) {
             std::cout << "Opção inválida.\n";
         }
@@ -254,10 +275,10 @@ void cgroupManager() {
 // =========================================
 // FUNÇÃO PARA O Perfilador de Recursos
 // =========================================
-void resourceProfiler(){
-    entrada:
-    int PID = escolherPID();
-    unsigned int intervalo;
+void resourceProfiler() {
+entrada:
+	int PID = escolherPID();
+	unsigned int intervalo;
 
 	std::cout << "\033[1;36m"; // ciano em negrito
 	std::cout << "\n============================================================\n";
@@ -266,203 +287,178 @@ void resourceProfiler(){
 	std::cout << "\033[0m"; // reseta as cores pro resto do texto
 
 
-    while(true){
-    std::cout << "\nInsira o intervalo de monitoramento, em segundos: ";
-    std::cin >> intervalo;
-    bool flagInsert = true;
+	while (true) {
+		std::cout << "\nInsira o intervalo de monitoramento, em segundos: ";
+		std::cin >> intervalo;
+		bool flagInsert = true;
 
-    if (std::cin.fail()) {
-        std::cin.clear();
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        std::cout << "Entrada inválida. Tente novamente.\n";
-        flagInsert = false;
-    }
-    if(flagInsert){
-        break;
-    }
-    }
-    StatusProcesso medicaoAnterior;
-    StatusProcesso medicaoAtual;
-    medicaoAtual.PID = PID;
-    bool flagMedicao = true;
-    int contador=0;
+		if (std::cin.fail()) {
+			std::cin.clear();
+			std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+			std::cout << "Entrada inválida. Tente novamente.\n";
+			flagInsert = false;
+		}
+		if (flagInsert) {
+			break;
+		}
+	}
+	StatusProcesso medicaoAnterior;
+	StatusProcesso medicaoAtual;
+	medicaoAtual.PID = PID;
+	bool flagMedicao = true;
+	int contador = 0;
 
-    while (true){
-    
-    if(!(coletorCPU(medicaoAtual) && coletorMemoria(medicaoAtual) && coletorIO(medicaoAtual) && coletorNetwork(medicaoAtual))){
-        std::cout << "\nFalha ao acessar dados do processo\n";
-        std::cout << "Reiniciando...\n";
-        goto entrada;
-    }else{
-        //criação e atualização CSV
-        calculoMedicao resultado;
-        if(flagMedicao){
-        resultado.usoCPU = 0;
-        resultado.usoCPUGlobal = 0;
-        resultado.taxaLeituraDisco = 0;
-        resultado.taxaLeituraTotal = 0;
-        resultado.taxaEscritaDisco = 0;
-        resultado.taxaEscritaTotal = 0;
-        salvarMedicoesCSV(medicaoAtual,resultado);
-        }
+	while (true) {
 
-			if(flagMedicao){
+		if (!(coletorCPU(medicaoAtual) && coletorMemoria(medicaoAtual) && coletorIO(medicaoAtual) && coletorNetwork(medicaoAtual))) {
+			std::cout << "\nFalha ao acessar dados do processo\n";
+			std::cout << "Reiniciando...\n";
+			goto entrada;
+		}
+		else {
+			//criação e atualização CSV
+			calculoMedicao resultado;
+			if (flagMedicao) {
+				resultado.usoCPU = 0;
+				resultado.usoCPUGlobal = 0;
+				resultado.taxaLeituraDisco = 0;
+				resultado.taxaLeituraTotal = 0;
+				resultado.taxaEscritaDisco = 0;
+				resultado.taxaEscritaTotal = 0;
+				salvarMedicoesCSV(medicaoAtual, resultado);
+			}
+
+			if (flagMedicao) {
 				std::cout << " Primeira medição detectada... \n";
 				std::cout << " Dados e métricas serão mostrados a partir da segunda medição, por favor espere " << intervalo << " segundos... \n";
 				flagMedicao = false;
-			}else{
-            
-            //Calculo das métricas de CPU
-            double tempoCPUAtual = medicaoAtual.utime + medicaoAtual.stime;
-            double tempoCPUAnterior = medicaoAnterior.utime + medicaoAnterior.stime;
-            double deltaCPU = tempoCPUAtual - tempoCPUAnterior;
-            double usoCPU = (deltaCPU/static_cast<double>(intervalo))*100;
-            double usoCPUGlobal = usoCPU/(static_cast<double>(sysconf(_SC_NPROCESSORS_ONLN)));
+			}
+			else {
 
-            //Cálculo das métricas de I/O (em KB)
-            double taxaleituraDisco = (static_cast<double>(medicaoAtual.bytesLidos-medicaoAnterior.bytesLidos)/static_cast<double>(intervalo))/1024;
-            double taxaleituraTotal = (static_cast<double>(medicaoAtual.rchar-medicaoAnterior.rchar)/static_cast<double>(intervalo))/1024;
-            double taxaEscritaDisco = (static_cast<double>(medicaoAtual.bytesEscritos-medicaoAnterior.bytesEscritos)/static_cast<double>(intervalo))/1024;
-            double  taxaEscritaTotal = (static_cast<double>(medicaoAtual.wchar-medicaoAnterior.wchar)/static_cast<double>(intervalo))/1024;
+				//Calculo das métricas de CPU
+				double tempoCPUAtual = medicaoAtual.utime + medicaoAtual.stime;
+				double tempoCPUAnterior = medicaoAnterior.utime + medicaoAnterior.stime;
+				double deltaCPU = tempoCPUAtual - tempoCPUAnterior;
+				double usoCPU = (deltaCPU / static_cast<double>(intervalo)) * 100;
+				double usoCPUGlobal = usoCPU / (static_cast<double>(sysconf(_SC_NPROCESSORS_ONLN)));
 
-            resultado.usoCPU = usoCPU;
-            resultado.usoCPUGlobal = usoCPUGlobal;
-            resultado.taxaLeituraDisco = taxaleituraDisco;
-            resultado.taxaLeituraTotal = taxaleituraTotal;
-            resultado.taxaEscritaDisco = taxaEscritaDisco;
-            resultado.taxaEscritaTotal = taxaEscritaTotal;
-            salvarMedicoesCSV(medicaoAtual,resultado);
+				//Cálculo das métricas de I/O (em KB)
+				double taxaleituraDisco = (static_cast<double>(medicaoAtual.bytesLidos - medicaoAnterior.bytesLidos) / static_cast<double>(intervalo)) / 1024;
+				double taxaleituraTotal = (static_cast<double>(medicaoAtual.rchar - medicaoAnterior.rchar) / static_cast<double>(intervalo)) / 1024;
+				double taxaEscritaDisco = (static_cast<double>(medicaoAtual.bytesEscritos - medicaoAnterior.bytesEscritos) / static_cast<double>(intervalo)) / 1024;
+				double  taxaEscritaTotal = (static_cast<double>(medicaoAtual.wchar - medicaoAnterior.wchar) / static_cast<double>(intervalo)) / 1024;
 
-            printf(
-            "================================================================================\n"
-            "|                                MEDIÇÃO (Processo %d)                          \n"
-            "================================================================================\n"
-            "| Intervalo de monitoramento: %3u segundos                                      |\n"
-            "--------------------------------------------------------------------------------\n"
-            "| CPU                      |            |\n"
-            "-----------------------------------------\n"
-            "| user_time(s)             | %-10.6f |\n"
-            "| system_time(s)           | %-10.6f |\n"
-            "| Uso por core (%%)         |  %-9.5f |\n"
-            "| Uso relativo (%%)         |  %-9.5f |\n"
-            "-----------------------------------------\n"
-            "| Threads / ContextSwitch  |            |\n"
-            "-----------------------------------------\n"
-            "| Threads                  | %-10u |\n"
-            "| voluntary_ctxt_switch    | %-10u |\n"
-            "| nonvoluntary_ctxt_switch | %-10u |\n"
-            "-----------------------------------------\n"
-            "| Memória                  |            |\n"
-            "-----------------------------------------\n"
-            "| VmSize (kB)              | %-10lu |\n"
-            "| VmRSS (kB)               | %-10lu |\n"
-            "| VmSwap (kB)              | %-10lu |\n"
-            "| minor faults             | %-10lu |\n"
-            "| major faults             | %-10lu |\n"
-            "-----------------------------------------\n"
-            "| Syscalls                 |            |\n"
-            "-----------------------------------------\n"
-            "| leituras                 | %-10lu |\n"
-            "| escritas                 | %-10lu |\n"
-            "-----------------------------------------\n"
-            "| Taxas (KiB/s)            |            |\n"
-            "-----------------------------------------\n"
-            "| Leitura disco            | %-10.6f |\n"
-            "| Leitura total (rchar)    | %-10.6f |\n"
-            "| Escrita disco            | %-10.6f |\n"
-            "| Escrita total (wchar)    | %-10.6f |\n"
-            "-----------------------------------------\n"
-            "| Network                  |            |\n"
-            "-----------------------------------------\n"
-            "| Bytes enviados (TX)      | %-10lu |\n"
-            "| Bytes recebidos (RX)     | %-10lu |\n"
-            "| Pacotes enviados         | %-10lu |\n"
-            "| Pacotes recebidos        | %-10lu |\n"
-            "| Conexões ativas          | %-10u |\n"
-            "=========================================\n"
-            "| Próxima medição em %3u segundos...    |\n"
-            "=========================================\n\n\n\n\n",
-            medicaoAtual.PID, intervalo,
-            medicaoAtual.utime, medicaoAtual.stime, usoCPU, usoCPUGlobal,
-            medicaoAtual.threads, medicaoAtual.contextSwitchfree, medicaoAtual.contextSwitchforced,
-            medicaoAtual.vmSize, medicaoAtual.vmRss, medicaoAtual.vmSwap,
-            medicaoAtual.minfault, medicaoAtual.mjrfault,
-            medicaoAtual.syscallLeitura, medicaoAtual.syscallEscrita,
-            taxaleituraDisco, taxaleituraTotal, taxaEscritaDisco, taxaEscritaTotal,
-            medicaoAtual.bytesTx, medicaoAtual.bytesRx,
-            medicaoAtual.pacotesEnviados, medicaoAtual.pacotesRecebidos,
-            medicaoAtual.conexoesAtivas,
-            intervalo
-            );
+				resultado.usoCPU = usoCPU;
+				resultado.usoCPUGlobal = usoCPUGlobal;
+				resultado.taxaLeituraDisco = taxaleituraDisco;
+				resultado.taxaLeituraTotal = taxaleituraTotal;
+				resultado.taxaEscritaDisco = taxaEscritaDisco;
+				resultado.taxaEscritaTotal = taxaEscritaTotal;
+				salvarMedicoesCSV(medicaoAtual, resultado);
 
-        }
-        contador++;
-        if(contador==5){
-        int escolha;
-        while(true){
-            std::cout << "Deseja encerrar o monitoramento? (1 -> sim/0 -> não): \n";
-            std::cin >> escolha;
-            bool flagInsert = true;
-
-        if (std::cin.fail() || escolha > 1) {
-            std::cin.clear();
-            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-            std::cout << "Entrada inválida. Tente novamente.\n";
-            flagInsert = false;
-        }
-        if(flagInsert){
-            break;
-        }
-        }
-        if(escolha==1){
-        while(true){
-        std::cout << "Certo, você quer monitorar outro processo ou sair do resource profiler? (1 -> sair/0 -> outro processo): \n";
-        std::cin >> escolha;
-        bool flagInsert = true;
+				printf(
+					"================================================================================\n"
+					"|                                MEDIÇÃO (Processo %d)                          \n"
+					"================================================================================\n"
+					"| Intervalo de monitoramento: %3u segundos                                      |\n"
+					"--------------------------------------------------------------------------------\n"
+					"| CPU                      |            |\n"
+					"-----------------------------------------\n"
+					"| user_time(s)             | %-10.6f |\n"
+					"| system_time(s)           | %-10.6f |\n"
+					"| Uso por core (%%)         |  %-9.5f |\n"
+					"| Uso relativo (%%)         |  %-9.5f |\n"
+					"-----------------------------------------\n"
+					"| Threads / ContextSwitch  |            |\n"
+					"-----------------------------------------\n"
+					"| Threads                  | %-10u |\n"
+					"| voluntary_ctxt_switch    | %-10u |\n"
+					"| nonvoluntary_ctxt_switch | %-10u |\n"
+					"-----------------------------------------\n"
+					"| Memória                  |            |\n"
+					"-----------------------------------------\n"
+					"| VmSize (kB)              | %-10lu |\n"
+					"| VmRSS (kB)               | %-10lu |\n"
+					"| VmSwap (kB)              | %-10lu |\n"
+					"| minor faults             | %-10lu |\n"
+					"| major faults             | %-10lu |\n"
+					"-----------------------------------------\n"
+					"| Syscalls                 |            |\n"
+					"-----------------------------------------\n"
+					"| leituras                 | %-10lu |\n"
+					"| escritas                 | %-10lu |\n"
+					"-----------------------------------------\n"
+					"| Taxas (KiB/s)            |            |\n"
+					"-----------------------------------------\n"
+					"| Leitura disco            | %-10.6f |\n"
+					"| Leitura total (rchar)    | %-10.6f |\n"
+					"| Escrita disco            | %-10.6f |\n"
+					"| Escrita total (wchar)    | %-10.6f |\n"
+					"-----------------------------------------\n"
+					"| Network                  |            |\n"
+					"-----------------------------------------\n"
+					"| Bytes enviados (TX)      | %-10lu |\n"
+					"| Bytes recebidos (RX)     | %-10lu |\n"
+					"| Pacotes enviados         | %-10lu |\n"
+					"| Pacotes recebidos        | %-10lu |\n"
+					"| Conexões ativas          | %-10u |\n"
+					"=========================================\n"
+					"| Próxima medição em %3u segundos...    |\n"
+					"=========================================\n\n\n\n\n",
+					medicaoAtual.PID, intervalo,
+					medicaoAtual.utime, medicaoAtual.stime, usoCPU, usoCPUGlobal,
+					medicaoAtual.threads, medicaoAtual.contextSwitchfree, medicaoAtual.contextSwitchforced,
+					medicaoAtual.vmSize, medicaoAtual.vmRss, medicaoAtual.vmSwap,
+					medicaoAtual.minfault, medicaoAtual.mjrfault,
+					medicaoAtual.syscallLeitura, medicaoAtual.syscallEscrita,
+					taxaleituraDisco, taxaleituraTotal, taxaEscritaDisco, taxaEscritaTotal,
+					medicaoAtual.bytesTx, medicaoAtual.bytesRx,
+					medicaoAtual.pacotesEnviados, medicaoAtual.pacotesRecebidos,
+					medicaoAtual.conexoesAtivas,
+					intervalo
+				);
 
 			}
 			contador++;
-			if(contador==5){
+			if (contador == 5) {
 				int escolha;
-				while(true){
+				while (true) {
 					std::cout << "Deseja encerrar o monitoramento? (1 -> sim/0 -> não): \n";
 					std::cin >> escolha;
 					bool flagInsert = true;
-
 					if (std::cin.fail() || escolha > 1) {
 						std::cin.clear();
 						std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 						std::cout << "Entrada inválida. Tente novamente.\n";
 						flagInsert = false;
 					}
-					if(flagInsert){
-					break;
+					if (flagInsert) {
+						break;
 					}
 				}
-				if(escolha==1){
-					while(true){
+				if (escolha == 1) {
+					while (true) {
 						std::cout << "Certo, você quer monitorar outro processo ou sair do resource profiler? (1 -> sair/0 -> outro processo): \n";
 						std::cin >> escolha;
 						bool flagInsert = true;
-
 						if (std::cin.fail() || escolha > 1) {
 							std::cin.clear();
 							std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 							std::cout << "Entrada inválida. Tente novamente. \n";
 							flagInsert = false;
 						}
-						if(flagInsert){
+						if (flagInsert) {
 							break;
 						}
 					}
-
-					if(escolha == 0){
+					if (escolha == 0) {
 						goto entrada;
-					}else{
+					}
+					else {
 						break;
 					}
-
-				}else{
+				}
+				else {
 					std::cout << "O processo de PID: " << medicaoAtual.PID << " será monitorado por mais 5 ciclos... \n";
 					contador = 0;
 				}
@@ -489,7 +485,6 @@ void namespaceAnalyzer(){
 		std::cout << " 2. Comparar namespaces entre dois processos\n";
 		std::cout << " 3. Procurar processos em um namespace especifico\n";
 		std::cout << " 4. Relatório geral de namespaces\n";
-		std::cout << " 5. Executar Experimento 2: Isolamento via Namespaces\n";
 		std::cout << " 0. Voltar ao menu inicial\n";
 		std::cout << "------------------------------------------------------------\n";
 		std::cout << "Escolha: ";
@@ -567,10 +562,6 @@ void namespaceAnalyzer(){
 			gerarRelatorioGeralCompleto();
 		}
 
-		else if (sub == 5) {
-			executarExperimentoIsolamento();
-		}
-
 		else if (sub == 0) {
 			std::cout << "Voltando ao menu principal...\n";
 		}
@@ -590,7 +581,7 @@ int main() {
         std::cout << " 1. Gerenciar Cgroups\n";
         std::cout << " 2. Analisar Namespaces\n";
       	std::cout << " 3. Perfilador de Recursos\n";
-        std::cout << " 4. Executar Experimentos (CPU/Memory)\n";  
+        std::cout << " 4. Executar Experimentos\n";  
         std::cout << " 0. Sair\n";
         std::cout << " Escolha: ";
         std::cin >> opcao;
