@@ -32,6 +32,9 @@
 *.a
 *.lib
 
+# Ignorar a pasta de binários
+bin/
+
 # Executables
 *.exe
 *.out
