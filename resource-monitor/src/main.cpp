@@ -91,7 +91,7 @@ std::vector<ProcessInfo> listarProcessos() {
         if (!entry.is_directory()) continue;
 
         const std::string dir = entry.path().filename().string();
-        if (!std::all_of(dir.begin(), dir.end(), ::isdigit)) continue; // só números (PIDs)
+        if (!std::all_of(dir.begin(), dir.end(), ::isdigit)) continue;
 
         int pid = std::stoi(dir);
         std::ifstream cmdline("/proc/" + dir + "/comm");
@@ -122,7 +122,6 @@ int escolherPID() {
         std::cout << "\nDigite o número do PID escolhido: ";
         std::cin >> pid;
 
-        // valida entrada
         if (std::cin.fail()) {
             std::cin.clear();
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
@@ -147,21 +146,42 @@ int escolherPID() {
     return pid;
 }
 
-// =========================================
-// FUNÇÃO PARA O GERENCIADOR DE CGROUP
-// =========================================
+void executarExperimentos() {
+    CGroupManager manager;
+
+    int sub = -1;
+    do {
+        std::cout << "\n\033[1;36m==================== EXPERIMENTOS CGROUP ====================\033[0m\n";
+        std::cout << " 1. Experimento 3 – Throttling de CPU\n";
+        std::cout << " 2. Experimento 4 – Limite de Memória\n";
+        std::cout << " 0. Voltar\n";
+        std::cout << " Escolha: ";
+        std::cin >> sub;
+
+        if (sub == 1) {
+            manager.runCpuThrottlingExperiment();
+        }
+        else if (sub == 2) {
+            manager.runMemoryLimitExperiment();
+        }
+        else if (sub != 0) {
+            std::cout << "Opção inválida.\n";
+        }
+
+    } while (sub != 0);
+}
+
 void cgroupManager() {
     CGroupManager manager;
 
-	std::cout << "\033[1;36m"; // ciano em negrito
-	std::cout << "\n============================================================\n";
-	std::cout << "                         CGroup Manager                      \n";
-	std::cout << "============================================================\n";
-	std::cout << "\033[0m"; // reseta as cores pro resto do texto
+    std::cout << "\033[1;36m";
+    std::cout << "\n============================================================\n";
+    std::cout << "                         CGroup Manager                      \n";
+    std::cout << "============================================================\n";
+    std::cout << "\033[0m";
 
-    std::string cgroupName;
-    std::cout << "\n Nome do cgroup experimental: ";
-    std::cin >> cgroupName;
+    std::string cgroupName = "exp_" + std::to_string(time(nullptr));
+    std::cout << "Nome do cgroup experimental: " << cgroupName << ".\n";
 
     if (!manager.createCGroup(cgroupName)) {
         std::cerr << "Falha ao criar cgroup.\n";
@@ -186,7 +206,6 @@ void cgroupManager() {
 
     std::cout << "\n--- Relatório de uso ---\n";
 
-    // CPU
     auto cpu = manager.readCpuUsage(cgroupName);
     if (cpu.count("usage_usec"))
         std::cout << "CPU total usada (µs): " << cpu["usage_usec"] << "\n";
@@ -195,15 +214,41 @@ void cgroupManager() {
     if (cpu.count("system_usec"))
         std::cout << "Tempo em modo kernel (µs): " << cpu["system_usec"] << "\n";
 
-    // Memória
     auto mem = manager.readMemoryUsage(cgroupName);
     if (mem.count("memory.current"))
         std::cout << "Memória atual (bytes): " << mem["memory.current"] << "\n";
 
     std::cout << "\nEstatísticas de BlkIO:\n";
     auto blk = manager.readBlkIOUsage(cgroupName);
-    if (blk.empty())
+
+    if (blk.empty()) {
         std::cout << "(sem atividade de I/O registrada)\n";
+        return;
+    }
+
+    for (const auto& entry : blk) {
+        if (entry.rbytes == 0 && entry.wbytes == 0 && entry.dbytes == 0)
+            continue;
+
+        std::cout << "  Device " << entry.major << ":" << entry.minor << "\n";
+
+        auto fmtBytes = [](uint64_t b) {
+            const char* suf[] = { "B", "KB", "MB", "GB", "TB" };
+            int i = 0;
+            double v = b;
+            while (v > 1024 && i < 4) { v /= 1024; i++; }
+            std::ostringstream oss;
+            oss << std::fixed << std::setprecision(2) << v << " " << suf[i];
+            return oss.str();
+            };
+
+        std::cout << "    Read:    " << fmtBytes(entry.rbytes)
+            << "  (" << entry.rios << " ops)\n";
+        std::cout << "    Write:   " << fmtBytes(entry.wbytes)
+            << "  (" << entry.wios << " ops)\n";
+        std::cout << "    Discard: " << fmtBytes(entry.dbytes)
+            << "  (" << entry.dios << " ops)\n\n";
+    }
 }
 
 void resourceProfiler(){
@@ -496,38 +541,41 @@ void namespaceAnalyzer(){
 		}
 
 	} while (sub != 0);
-
 }
 
 int main() {
-	int opcao;
-	do {
-		std::cout << "\n\033[0;4;31m===================== RESOURCE MONITOR =====================\033[0m\n";
-		std::cout << "\033[1m";
-		std::cout << " 1. Gerenciar Cgroups\n";
-		std::cout << " 2. Analisar Namespaces\n";
-		std::cout << " 0. Sair\n";
-		std::cout << " Escolha: ";
-		std::cin >> opcao;
-		std::cout << "\033[0m";
+    int opcao;
+    do {
+        std::cout << "\n\033[0;4;31m===================== RESOURCE MONITOR =====================\033[0m\n";
+        std::cout << "\033[1m";
+        std::cout << " 1. Gerenciar Cgroups\n";
+        std::cout << " 2. Analisar Namespaces\n";
+        std::cout << " 3. Executar Experimentos (CPU/Memory)\n";  
+        std::cout << " 0. Sair\n";
+        std::cout << " Escolha: ";
+        std::cin >> opcao;
+        std::cout << "\033[0m";
 
-		switch (opcao) {
-			case 1:
-				cgroupManager();
-				break;
-			
-			case 2: {
-				namespaceAnalyzer();
-				break;
-			}
+        switch (opcao) {
+        case 1:
+            cgroupManager();
+            break;
 
-			case 0:
-				std::cout << "Encerrando...\n";
-				break;
+        case 2:
+            namespaceAnalyzer();
+            break;
 
-			default:
-				std::cout << "Opção inválida!\n";
-		}
+        case 3:
+            executarExperimentos();  
+            break;
 
-	} while (opcao != 0);
+        case 0:
+            std::cout << "Encerrando...\n";
+            break;
+
+        default:
+            std::cout << "Opção inválida!\n";
+        }
+
+    } while (opcao != 0);
 }
