@@ -14,6 +14,8 @@
 #include <set>
 #include <unistd.h>
 #include <iomanip>
+#include <cmath>
+#include <sys/wait.h>
 
 namespace fs = std::filesystem;
 
@@ -176,15 +178,15 @@ void executarExperimentos() {
         else if (sub == 2) {
             manager.runMemoryLimitExperiment();
         }
-        else if (sub == 3) {
-            executarExperimentoIsolamento();
-        }
-        else if (sub == 4) {
-            std::cout << "OPÇÃO AINDA NÃO IMPLEMENTADA.\n";
-        }
-        else if (sub == 5) {
-            std::cout << "OPÇÃO AINDA NÃO IMPLEMENTADA.\n";
-        }
+		else if (sub == 3) {
+			executarExperimentoIsolamento();
+		}
+		else if (sub == 4) {
+			overheadMonitoramento();
+		}
+		else if (sub == 5) {
+			std::cout << "OPÇÃO AINDA NÃO IMPLEMENTADA.\n";
+		}
         else if (sub != 0) {
             std::cout << "Opção inválida.\n";
         }
@@ -465,6 +467,9 @@ entrada:
         }
     }
 }
+
+
+
 
 // =========================================
 // FUNÇÃO PARA O ANALISADOR DE NAMESPACE
