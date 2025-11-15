@@ -29,9 +29,9 @@ public:
     std::map<std::string, size_t> readMemoryUsage(const std::string& name);
     std::vector<BlkIOStats> readBlkIOUsage(const std::string& name);
 
-    // Experimento 3 — Throttling de CPU
+    // Experimento 3 â€” Throttling de CPU
     void runCpuThrottlingExperiment();
 
-    // Experimento 4 — Limite de Memória
+    // Experimento 4 â€” Limite de MemÃ³ria
     void runMemoryLimitExperiment();
 };
