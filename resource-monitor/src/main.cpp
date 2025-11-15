@@ -194,33 +194,49 @@ void executarExperimentos() {
     } while (sub != 0);
 }
 
+// Função que faz o gerenciado do cgroup no main
 void cgroupManager() {
-    CGroupManager manager;
+    // Cria uma instância do gerenciador de cgroups (objeto que encapsula operações com cgroups).
+    CGroupManager manager; 
 
+    // Imprime um cabeçalho colorido no terminal (código ANSI para cor ciano em negrito).
     std::cout << "\033[1;36m";
     std::cout << "\n============================================================\n";
     std::cout << "                         CGroup Manager                      \n";
     std::cout << "============================================================\n";
     std::cout << "\033[0m";
 
+    // Gera um nome único para o cgroup usando o horário atual, para sempre criar nomes diferentes.
     std::string cgroupName = "exp_" + std::to_string(time(nullptr));
     std::cout << "Nome do cgroup experimental: " << cgroupName << ".\n";
 
+    // Tenta criar o cgroup; se falhar, imprime erro e retorna.
     if (!manager.createCGroup(cgroupName)) {
         std::cerr << "Falha ao criar cgroup.\n";
         return;
     }
 
+    // Solicita ao usuário escolher um PID. Chama a função escolherPID()
     int pid = escolherPID();
+
+    // Move o processo selecionado para o cgroup; se falhar, imprime erro e retorna.
     if (!manager.moveProcessToCGroup(cgroupName, pid)) {
         std::cerr << "Falha ao mover o processo para o cgroup.\n";
         return;
     }
+    std::cout << "Processo " << pid << " movido com sucesso para " << cgroupName << ".\n";
 
-    double cores;
+    // Lê do usuário o limite de CPU (em "núcleos" — valor float/double; -1 significa ilimitado).
+    double cores; // Set da variável que recebe a quantidade de cores
     std::cout << "Limite de CPU (em núcleos, ex: 0.5, 1.0, -1 para ilimitado): ";
     std::cin >> cores;
-    manager.setCpuLimit(cgroupName, cores);
+
+    // Faz o set do limite da Cpu e verifica se deu certo. Manda como parâmetros o nome do cgroup e a quantidade de cores
+    if (!manager.setCpuLimit(cgroupName, cores)) {
+        std::cerr << "Falha ao limitar a CPU.\n"; // Caso ocorra um erro mostra o problema ao usuário
+        return;
+    }
+    std::cout << "CPU limitada em " << cores << " cores.\n";
 
     size_t memBytes;
     std::cout << "Limite de memória (em bytes, ex: 1000000000): ";
