@@ -1,6 +1,96 @@
 # grupo7_RA3
-Esta atividade propõe o desenvolvimento de um sistema de profiling e análise que permita monitorar, limitar e analisar o uso de recursos por processos e containers, explorando as primitivas do kernel Linux que tornam a containerização possível.
+## Descrição do Projeto
 
+###### Este projeto implementa um sistema completo de profiling e análise de recursos para o ambiente Linux, capaz de monitorar, registrar e validar métricas de:
+
+- CPU (por núcleo e global)
+- Memória física (RSS) e memória virtual (VMS)
+- I/O (leituras e escritas reais e lógicas)
+- Overhead causado pelo próprio monitoramento
+
+Além disso, o sistema inclui uma série de experimentos práticos envolvendo primitivas fundamentais do kernel Linux, explorando diretamente:
+
+- Namespaces (PID, NET, MNT)
+- Cgroups v2 (CPU, memória e IO)
+- Filesystem /proc
+- Chamadas clone(), fork(), unshare(), mount()
+
+Este projeto também busca quantificar o custo (overhead) associado ao monitoramento e à criação de ambientes isolados. E o objetivo principal é demonstrar, de forma prática e mensurável, como o kernel Linux provê isolamento, limitação de recursos e containerização — mecanismos que são a base de tecnologias como Docker, LXC, Kubernetes e containers de modo geral.
+
+### Autores do projeto:
+* Caliel Carvalho de Medeiros
+* Felipe Coelho Ramos
+* Leonardo Soares de Mattos
+
+## Guia de Instalação e Compilação (WSL/Ubuntu)
+Este guia rápido configura o ambiente de desenvolvimento Linux (WSL) no Windows, instala os compiladores C++ (g++/make) e compila o projeto resource-monitor.
+
+##### Instalação do Ambiente WSL
+
+1. Abra o PowerShell ou Prompt de Comando como Administrador.
+
+2. Execute o comando para instalar o WSL e a distribuição Ubuntu padrão:
+`wsl --install`
+
+3. Reinicie o computador quando solicitado.
+
+Após reiniciar, o terminal do Ubuntu será aberto. Siga as instruções para criar seu nome de usuário e senha do Linux.
+
+##### Instalação dos Compiladores
+
+1. No seu terminal Ubuntu, atualize a lista de pacotes:
+`sudo apt update`
+
+2. Instale os pacotes essenciais de compilação (g++, make, etc.) e o git, tudo com um único comando: `sudo apt install build-essential git -y`
+
+##### Compilação do Projeto
+
+1. Clone o repositório do projeto para dentro do seu ambiente Ubuntu: `git clone https://github.com/Leleomat/grupo7_RA3.git`
+
+2. Navegue até o diretório do projeto (onde o Makefile está): `cd grupo7_RA3/resource-monitor`
+
+3. Limpe a build e compile o código-fonte: `sudo make rebuild` ou faça separado: `sudo make clean` e depois `sudo make all`
+
+5. Execute o programa compilado: `sudo make run`
+
+1. 
+##### Execução do projeto
+
+- Ao rodar o programa, o usuário é apresentado ao menu principal, que contém as opções:
+>1. Gerenciar Cgroups
+>2. Analisar Namespaces
+>3. Perfilador de Recursos
+>4. Executar Experimentos
+
+>0. Sair
+
+
+- A opção 1 gerencia os CGroups
+- A opção 2 abre um sub-menu com opções relacionadas aos namespaces:
+>1. Listar namespaces de um processo
+>2. Comparar namespaces entre dois processos
+>3. Procurar processos em um namespace especifico
+>4. Relatório geral de namespaces
+
+>0. Voltar ao menu inicial
+
+- A opção 3 executa o Perfilador de Recursos
+- A opção 4 abre um sub-menu com opções relacionadas aos experimentos:
+> CGROUP 
+
+>1. Experimento nº3 – Throttling de CPU
+>2. Experimento nº4 – Limite de Memória
+
+> NAMESPACE 
+
+>3. Experimento nº2 - Isolamento via Namespaces
+
+> PROFILER 
+
+>4. Experimento nº1 - Overhead de Monitoramento
+>5. Experimento nº5 - Limitação de I/O
+
+>0. Voltar ao menu principal.
 
 ## Metodologia de Testes
 ## Responsável - Caliel Carvalho de Medeiros
@@ -64,6 +154,81 @@ Os resultados indicam que, à medida que o intervalo de amostragem aumenta, a la
 
 Testes subsequentes demonstraram que os resultados sofrem com ruído de medição.
 
+### Experimento 2 - Isolamento via Namespaces - Leonardo Soares de Mattos
+
+### Condições
+
+Este experimento foi projetado para validar a eficácia do isolamento de recursos fornecido pelos namespaces do kernel Linux e medir o overhead de performance associado à sua criação. O objetivo principal era demonstrar que um processo-filho pode ter uma visão do sistema (PIDs, rede, montagens de filesystem) completamente diferente e isolada do processo-pai.
+
+A execução do experimento exigiu privilégios de superusuário (sudo), pois as chamadas de sistema clone(), unshare() e mount() para criar e gerenciar novos namespaces são operações protegidas.
+
+### Execução
+
+O experimento foi dividido em três partes principais:
+
+1. Medição de Overhead: Foi medido o tempo de criação (em microssegundos) necessário para criar um novo processo e isolá-lo usando fork() e unshare() com diferentes flags. Este teste foi executado 10 vezes para cada tipo de namespace (PID, NET, NS) e para uma combinação de todos eles, a fim de calcular uma média de overhead.
+
+2. Validação de Isolamento: Um processo-filho foi criado usando a chamada clone() com as flags CLONE_NEWPID, CLONE_NEWNET e CLONE_NEWNS.
+
+-  Dentro do Filho: O processo verificou seu próprio PID (esperando ser 1), listou suas interfaces de rede (esperando ver apenas a loopback) e tentou montar um filesystem /proc privado (validando o isolamento de montagem).
+
+- Dentro do Pai: O processo-pai verificou o PID do filho (visto do namespace raiz, ex: 4633), listou suas próprias interfaces de rede (mostrando loopback e a interface eth0 real) e confirmou que seu próprio filesystem /proc não foi afetado.
+
+3. Análise do Sistema: O programa varreu o filesystem /proc para identificar todos os namespaces únicos existentes no sistema e contar quantos processos estavam associados a cada um.
+
+### Resultados
+
+Os resultados confirmaram o sucesso do isolamento e quantificaram o custo de sua criação.
+
+1. Tabela de Isolamento Efetivo: A validação de isolamento foi bem-sucedida, como demonstrado na tabela de efetividade gerada pelo programa:
+
+ Tipo de Namespace  |  Recurso Isolado?  |   Observação 
+:-----------------: | :----------------: | :-------------:
+PID (CLONE_NEWPID)  |        Sim         | Filho enxerga-se como PID 1 
+Rede (CLONE_NEWNET) |        Sim         | Filho enxerga somente a interface 'lo' (loopback)
+Mount (CLONE_NEWNS) |        Sim         | Montagens do filho (ex: /proc) nao afetam o pai
+
+![alt text](docs/visibilidades_filho_pai_exp2.png)
+
+2. Overhead de Criação (Média de 10 iterações): As medições de performance mostraram que a criação de namespaces tem um custo, sendo o de rede (NET) o mais significativo:
+
+- Overhead Médio CLONE_NEWPID (PID): 2.474,883 microssegundos
+- Overhead Médio CLONE_NEWNET (Rede): 8.610,230 microssegundos
+- Overhead Médio CLONE_NEWNS (Mount): 3.105,567 microssegundos
+- Overhead Médio Combinação (PID+NET+NS): 8.743,730 microssegundos
+
+![alt text](docs/Overhead_criacao_exp2.png)
+
+3. Número de Processos por Namespace Único: A análise do sistema revelou que, embora a maioria dos processos compartilhasse os namespaces padrão, alguns namespaces (como mnt e uts) já possuíam instâncias isoladas:
+
+- cgroup: 1 namespace único (com 28 processos)
+- ipc: 1 namespace único (com 28 processos)
+- mnt: 5 namespaces únicos (um com 24 processos, os outros 4 com 1 processo cada)
+- net: 1 namespace único (com 28 processos)
+- pid: 1 namespace único (com 28 processos)
+- user: 1 namespace único (com 28 processos)
+- uts: 5 namespaces únicos (um com 24 processos, os outros 4 com 1 processo cada)
+
+![alt text](docs/numProcessosPorNamespace_exp2.png)
+
+O experimento concluiu com sucesso que os namespaces são uma ferramenta eficaz para o isolamento de recursos.
+
+### Experimento 3 - Throttling de CPU - Felipe Coelho Ramos
+
+### Condições
+
+### Execução
+
+### Resultado
+
+### Experimento 4 - Limitação de Memória - Felipe Coelho Ramos
+
+### Condições
+
+### Execução
+
+### Resultado
+
 ### Experimento 5 - Limitação de I/O - Caliel Carvalho de Medeiros
 
 ### Condições
@@ -114,12 +279,11 @@ O objetivo era verificar a precisão do throttle de I/O e avaliar o impacto no d
 - O impacto no tempo total de execução do processo é de apenas 0,109%, confirmando que a limitação de I/O é eficaz sem degradar significativamente a performance.  
 - Pequenas variações observadas nos resultados podem ser explicadas por ruído do sistema, concorrência de processos e variabilidade inerente ao scheduler do Linux.
 
+Funcionalidades Extras (Bônus) implementadas: 
+- Código Excepcionalmente bem comentado (+10)
+- Suporte a cgroup v2 (unified hierarchy) (+5)
 
-### Condições
-O experimento foi realizado em ambiente Linux/wsl, utilizando um processo de teste que realiza operações intensivas de leitura e escrita em disco. O limite de I/O foi configurado para 1.000.000 bytes por segundo. Durante a execução, foram registradas métricas detalhadas, incluindo throughput real, latência média por operação de I/O, tempo total de execução e comparação do tempo observado com o valor esperado se o limite fosse estritamente aplicado. A intenção era verificar a precisão da limitação de I/O e medir seu impacto sobre o desempenho do processo.
-
-### Execução
-O processo de teste foi inicialmente executado sem limitação de I/O para determinar o throughput máximo natural e a latência típica de cada operação. Em seguida, o limite foi aplicado, e durante a execução limitada, foram coletadas informações sobre o total de bytes lidos e escritos, número de operações realizadas e tempo total de execução. A latência média de cada operação foi calculada dividindo o tempo total pelo número de operações, e o throughput real foi obtido dividindo o total de bytes processados pelo tempo total. Por fim, o tempo total de execução foi comparado ao valor teórico esperado com base no limite configurado.
-
-### Resultados
-O throughput medido foi de 998.911 bytes por segundo, muito próximo do limite configurado de 1.000.000 B/s, indicando precisão elevada no controle de I/O. A latência média por operação foi de 0,00256494 milissegundos, demonstrando que o overhead introduzido pelo throttle é praticamente desprezível. O tempo total de execução do processo foi de 10,4972 segundos, comparado a um tempo esperado de 10,4858 segundos, representando um impacto de apenas 0,109%. Esses resultados confirmam que o mecanismo de limitação de I/O é preciso, eficiente e pouco intrusivo, sendo capaz de restringir o throughput do processo sem afetar significativamente seu desempenho. Pequenas variações observadas podem ser atribuídas ao ruído do sistema e à variabilidade do scheduler do Linux.
+Observações:
+- Os contribuidores são somente os três integrantes citados no início deste README, se por ventura aparecer algum contribuidor chamado "root", somos nós, pois isso ocorreu ao utilizar comandos sudo com o git, o que ocasionou o surgimento do "root". 
+- Sobre a estrutura do projeto, temos os arquivos .py e .sh, porém como não foram necessárias suas utilizações, os arquivos existem e estão no projeto, porém vazios.
+- Este projeto foi desenvolvido para a disciplina de Sistemas de Computação (PUCPR).
