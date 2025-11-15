@@ -195,84 +195,147 @@ void executarExperimentos() {
 	} while (sub != 0);
 }
 
+// Função que faz o gerenciado do cgroup no main
 void cgroupManager() {
-	CGroupManager manager;
+    // Cria uma instância do gerenciador de cgroups (objeto que encapsula operações com cgroups).
+    CGroupManager manager;
 
-	std::cout << "\033[1;36m";
-	std::cout << "\n============================================================\n";
-	std::cout << "                         CGroup Manager                      \n";
-	std::cout << "============================================================\n";
-	std::cout << "\033[0m";
+    // Imprime um cabeçalho colorido no terminal (código ANSI para cor ciano em negrito).
+    std::cout << "\033[1;36m";
+    std::cout << "\n============================================================\n";
+    std::cout << "                         CGroup Manager                      \n";
+    std::cout << "============================================================\n";
+    std::cout << "\033[0m";
 
-	std::string cgroupName = "exp_" + std::to_string(time(nullptr));
-	std::cout << "Nome do cgroup experimental: " << cgroupName << ".\n";
+    // Gera um nome único para o cgroup usando o horário atual, para sempre criar nomes diferentes.
+    std::string cgroupName = "exp_" + std::to_string(time(nullptr));
+    std::cout << "Nome do cgroup experimental: " << cgroupName << ".\n";
 
-	if (!manager.createCGroup(cgroupName)) {
-		std::cerr << "Falha ao criar cgroup.\n";
-		return;
-	}
+    // Tenta criar o cgroup; se falhar, imprime erro e retorna.
+    if (!manager.createCGroup(cgroupName)) {
+        std::cerr << "Falha ao criar cgroup.\n";
+        return;
+    }
 
-	int pid = escolherPID();
-	if (!manager.moveProcessToCGroup(cgroupName, pid)) {
-		std::cerr << "Falha ao mover o processo para o cgroup.\n";
-		return;
-	}
+    // Solicita ao usuário escolher um PID. Chama a função escolherPID()
+    int pid = escolherPID();
 
-	double cores;
-	std::cout << "Limite de CPU (em núcleos, ex: 0.5, 1.0, -1 para ilimitado): ";
-	std::cin >> cores;
-	manager.setCpuLimit(cgroupName, cores);
+    // Move o processo selecionado para o cgroup; se falhar, imprime erro e retorna.
+    if (!manager.moveProcessToCGroup(cgroupName, pid)) {
+        std::cerr << "Falha ao mover o processo para o cgroup.\n";
+        return;
+    }
+    std::cout << "Processo " << pid << " movido com sucesso para " << cgroupName << ".\n";
 
-	size_t memBytes;
-	std::cout << "Limite de memória (em bytes, ex: 1000000000): ";
-	std::cin >> memBytes;
-	manager.setMemoryLimit(cgroupName, memBytes);
+    // Lê do usuário o limite de CPU (em "núcleos" — valor float/double; -1 significa ilimitado).
+    double cores; // Set da variável que recebe a quantidade de cores
+    std::cout << "Limite de CPU (em núcleos, ex: 0.5, 1.0, -1 para ilimitado): ";
+    std::cin >> cores;
 
-	std::cout << "\n--- Relatório de uso ---\n";
+    // Faz o set do limite da Cpu e verifica se deu certo. Manda como parâmetros o nome do cgroup e a quantidade de cores
+    if (!manager.setCpuLimit(cgroupName, cores)) {
+        std::cerr << "Falha ao limitar a CPU.\n"; // Caso ocorra um erro mostra o problema ao usuário
+        return;
+    }
+    std::cout << "CPU limitada em " << cores << " cores.\n"; // Mostra a mensagem da CPU limitada ao usuário
 
-	auto cpu = manager.readCpuUsage(cgroupName);
-	if (cpu.count("usage_usec"))
-		std::cout << "CPU total usada (µs): " << cpu["usage_usec"] << "\n";
-	if (cpu.count("user_usec"))
-		std::cout << "Tempo em modo usuário (µs): " << cpu["user_usec"] << "\n";
-	if (cpu.count("system_usec"))
-		std::cout << "Tempo em modo kernel (µs): " << cpu["system_usec"] << "\n";
+    // Processo de fazer o set da memória 
+    size_t memBytes; // Set da variável que recebe a memória em bites
+    std::cout << "Limite de memória (em bytes, ex: 1000000000): ";
+    std::cin >> memBytes;
 
-	auto mem = manager.readMemoryUsage(cgroupName);
-	if (mem.count("memory.current"))
-		std::cout << "Memória atual (bytes): " << mem["memory.current"] << "\n";
+    // Faz o set do limite de memória e verifica se deu certo. Manda como parâmetros o nome do cgroup e a memória em bytes
+    if (!manager.setMemoryLimit(cgroupName, memBytes)) {
+        std::cerr << "Falha ao limitar a memória.\n"; // Caso ocorra um erro mostra o problema ao usuário
+        return;
+    }
+    std::cout << "Memória limitada em " << memBytes << " bytes.\n"; // Mostra a mensagem da memória limitada ao usuário
 
-	std::cout << "\nEstatísticas de BlkIO:\n";
-	auto blk = manager.readBlkIOUsage(cgroupName);
+    std::cout << "\n--- Monitorando o processo ---\n";
 
-	if (blk.empty()) {
-		std::cout << "(sem atividade de I/O registrada)\n";
-		return;
-	}
+    int numeroLeitura = 1; // Set da variável do número da leitura
+    while (numeroLeitura <= 10) { // Loop que faz as 5 leituras 
+        // Verifica se o processo ainda está rodando
+        if (kill(pid, 0) != 0) { // kill(pid, 0) não mata o processo, apenas testa existência
+            std::cout << "\nProcesso " << pid << " finalizou. Encerrando monitoramento.\n";
+            break;
+        }
 
-	for (const auto& entry : blk) {
-		if (entry.rbytes == 0 && entry.wbytes == 0 && entry.dbytes == 0)
-			continue;
+        // Começa a gerar o relatório de uso da cgroup, mapeando CPU, memória e BlkIO
+        std::cout << "\n--- Relatório de uso (leitura " << numeroLeitura << ") ---\n";
 
-		std::cout << "  Device " << entry.major << ":" << entry.minor << "\n";
+        // Chama a função que faz a leitura do uso da CPU e armazena em cpu
+        auto cpu = manager.readCpuUsage(cgroupName);
 
-		auto fmtBytes = [](uint64_t b) {
-			const char* suf[] = { "B", "KB", "MB", "GB", "TB" };
-			int i = 0;
-			double v = b;
-			while (v > 1024 && i < 4) { v /= 1024; i++; }
-			std::ostringstream oss;
-			oss << std::fixed << std::setprecision(2) << v << " " << suf[i];
-			return oss.str();
-			};
+        // Se o mapa está vazio, pode significar erro ao abrir cpu.stat
+        if (cpu.empty()) {
+            std::cout << "Nenhum dado de CPU disponível (cpu.stat ausente ou vazio).\n";
+        }
+        else { // Caso contenha informações
+            if (cpu.count("usage_usec")) // Mostra o total de CPU usada
+                std::cout << "CPU total usada (µs): " << cpu["usage_usec"] << "\n";
+            else
+                std::cout << "usage_usec não encontrado no cpu.stat\n";
 
-		std::cout << "    Read:    " << fmtBytes(entry.rbytes)
-			<< "  (" << entry.rios << " ops)\n";
-		std::cout << "    Write:   " << fmtBytes(entry.wbytes)
-			<< "  (" << entry.wios << " ops)\n";
-		std::cout << "    Discard: " << fmtBytes(entry.dbytes)
-			<< "  (" << entry.dios << " ops)\n\n";
-	}
+            if (cpu.count("user_usec")) // Mostra o total de CPU usada em modo usuário
+                std::cout << "Tempo em modo usuário (µs): " << cpu["user_usec"] << "\n";
+            else
+                std::cout << "user_usec não encontrado no cpu.stat\n";
+
+            if (cpu.count("system_usec")) // Mostra o total de CPU usada em modo kernel
+                std::cout << "Tempo em modo kernel (µs): " << cpu["system_usec"] << "\n";
+            else
+                std::cout << "system_usec não encontrado no cpu.stat\n";
+        }
+
+        // Chama a função que faz a leitura do uso da memória e armazena em mem
+        auto mem = manager.readMemoryUsage(cgroupName);
+
+        // memory.current  → uso atual (obrigatório em cgroup v2)
+        if (mem.count("memory.current"))
+            std::cout << "Memória atual: "
+            << mem["memory.current"] << " bytes\n";
+        else
+            std::cout << "Não foi possível ler a memória atual\n";
+
+        std::cout << "\nEstatísticas de BlkIO:\n";
+        auto blk = manager.readBlkIOUsage(cgroupName);
+
+        if (blk.empty()) {
+            std::cout << "(sem atividade de I/O registrada)\n";
+        }
+        else {
+            for (const auto& entry : blk) {
+                if (entry.rbytes == 0 && entry.wbytes == 0 && entry.dbytes == 0)
+                    continue;
+
+                std::cout << "  Device " << entry.major << ":" << entry.minor << "\n";
+
+                auto fmtBytes = [](uint64_t b) {
+                    const char* suf[] = { "B", "KB", "MB", "GB", "TB" };
+                    int i = 0;
+                    double v = b;
+                    while (v > 1024 && i < 4) { v /= 1024; i++; }
+                    std::ostringstream oss;
+                    oss << std::fixed << std::setprecision(2) << v << " " << suf[i];
+                    return oss.str();
+                    };
+
+                std::cout << "    Read:    " << fmtBytes(entry.rbytes)
+                    << "  (" << entry.rios << " ops)\n";
+                std::cout << "    Write:   " << fmtBytes(entry.wbytes)
+                    << "  (" << entry.wios << " ops)\n";
+                std::cout << "    Discard: " << fmtBytes(entry.dbytes)
+                    << "  (" << entry.dios << " ops)\n\n";
+            }
+        }
+
+        // A cada iteração aguarda 3 segundos antes de atualizar
+        sleep(2);
+        numeroLeitura = numeroLeitura + 1; // Incrementa em 1 no numero da leitura 
+    }
+
+    std::cout << "Monitoramento de cgroup encerrado.\n";
 }
 
 // =========================================
