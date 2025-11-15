@@ -390,6 +390,9 @@ void resourceProfiler(){
         std::this_thread::sleep_for(std::chrono::seconds(intervalo));
     }
     }
+}
+
+
 // =========================================
 // FUNÇÃO PARA O ANALISADOR DE NAMESPACE
 // =========================================
@@ -500,34 +503,35 @@ void namespaceAnalyzer(){
 }
 
 int main() {
-	int opcao;
-	do {
-		std::cout << "\n\033[0;4;31m===================== RESOURCE MONITOR =====================\033[0m\n";
-		std::cout << "\033[1m";
-		std::cout << " 1. Gerenciar Cgroups\n";
-		std::cout << " 2. Analisar Namespaces\n";
-		std::cout << " 0. Sair\n";
-		std::cout << " Escolha: ";
-		std::cin >> opcao;
-		std::cout << "\033[0m";
+	// int opcao;
+	// do {
+	// 	std::cout << "\n\033[0;4;31m===================== RESOURCE MONITOR =====================\033[0m\n";
+	// 	std::cout << "\033[1m";
+	// 	std::cout << " 1. Gerenciar Cgroups\n";
+	// 	std::cout << " 2. Analisar Namespaces\n";
+	// 	std::cout << " 0. Sair\n";
+	// 	std::cout << " Escolha: ";
+	// 	std::cin >> opcao;
+	// 	std::cout << "\033[0m";
 
-		switch (opcao) {
-			case 1:
-				cgroupManager();
-				break;
+	// 	switch (opcao) {
+	// 		case 1:
+	// 			cgroupManager();
+	// 			break;
 			
-			case 2: {
-				namespaceAnalyzer();
-				break;
-			}
+	// 		case 2: {
+	// 			namespaceAnalyzer();
+	// 			break;
+	// 		}
 
-			case 0:
-				std::cout << "Encerrando...\n";
-				break;
+	// 		case 0:
+	// 			std::cout << "Encerrando...\n";
+	// 			break;
 
-			default:
-				std::cout << "Opção inválida!\n";
-		}
+	// 		default:
+	// 			std::cout << "Opção inválida!\n";
+	// 	}
 
-	} while (opcao != 0);
+	// } while (opcao != 0);
+    resourceProfiler();
 }

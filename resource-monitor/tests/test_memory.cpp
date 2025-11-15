@@ -1,34 +1,55 @@
-// #include <iostream>
-// #include <vector>
-// #include <thread>
-// #include <limits>
-// #include <unistd.h> // getpid()
+
+
+// #include <atomic>            
+// #include <chrono>            
+// #include <cstring>           
+// #include <fstream>           
+// #include <iostream>          
+// #include <thread>            
+// #include <vector>            
+
+// std::atomic<bool> rodando{true}; // flag atômica para controlar execução
+
+// // função executada por cada thread que aloca e "toca" memória
+// void trabalhoMemoria(size_t tamanhoBytes, int id) {
+//     // aloca um vetor de bytes no heap do tamanho pedido
+//     std::vector<unsigned char> bloco;
+//     try {
+//         bloco.resize(tamanhoBytes); // tenta alocar
+//     } catch (...) {
+//         std::cerr << "Thread " << id << ": falha ao alocar " << tamanhoBytes << " bytes\n";
+//         return; // falha na alocação → termina a thread
+//     }
+
+//     // tamanho do passo para tocar cada página (4KB típico)
+//     size_t passo = 4096;
+//     while (rodando.load()) { // loop até a flag ser desligada
+//         for (size_t i = 0; i < tamanhoBytes; i += passo) {
+//             bloco[i] = static_cast<unsigned char>((i + static_cast<size_t>(id)) & 0xFF); // escreve um byte por página
+//             if (!rodando.load()) break; // checa flag dentro do loop para parada mais rápida
+//         }
+//         // pequena pausa para reduzir consumo de CPU absoluto e dar chance ao SO
+//         std::this_thread::sleep_for(std::chrono::milliseconds(10));
+//     }
+// }
 
 // int main() {
-//     constexpr size_t MB = 1024 * 1024;
-//     constexpr size_t allocSizeMB = 200; // 200 MB
+//     unsigned int numeroThreads = std::max(1u, std::thread::hardware_concurrency());
+//     // cada thread aloca o valor definido em ull
+//     size_t bytesPorThread = 100ull * 1024 * 1024;
 
-//     std::cout << "Alocando " << allocSizeMB << " MB de memória...\n";
+//     std::cout << "Teste Memória: " << numeroThreads << " threads, "
+//               << (bytesPorThread / (1024*1024)) << " MB por thread (aprox).\n";
+//     std::cout << "Pressione ENTER para parar.\n";
 
-//     std::vector<char> memory;
-//     try {
-//         memory.resize(allocSizeMB * MB, 0);
-//     } catch (const std::bad_alloc&) {
-//         std::cerr << "Falha ao alocar memória.\n";
-//         return 1;
-//     }
+//     std::vector<std::thread> threads; // guarda threads
+//     for (unsigned int i = 0; i < numeroThreads; ++i)
+//         threads.emplace_back(trabalhoMemoria, bytesPorThread, (int)i); // inicia threads
 
-//     // Acessa cada MB para realmente usar a memória
-//     for (size_t i = 0; i < memory.size(); i += MB) {
-//         memory[i] = 1;
-//     }
+//     std::cin.get();             // espera ENTER
+//     rodando.store(false);       // sinaliza parada
 
-//     std::cout << "Memória alocada e inicializada!\n";
-//     std::cout << "Pressione ENTER para liberar memória e sair...\n";
-
-//     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-//     std::cin.get();
-
-//     std::cout << "Liberando memória e saindo...\n";
+//     for (auto &t : threads) if (t.joinable()) t.join(); // aguarda fim das threads
+//     std::cout << "Teste Memória finalizado.\n";
 //     return 0;
 // }

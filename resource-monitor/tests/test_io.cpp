@@ -1,61 +1,73 @@
-// #include <iostream>
-// #include <fstream>
-// #include <vector>
-// #include <thread>
-// #include <atomic>
-// #include <chrono>
-// #include <filesystem>
 
-// const size_t CHUNK_SIZE = 1024 * 10; // 10 KB por leitura/escrita
-// const int NUM_THREADS = 4;
 
-// std::atomic<bool> running(true);
+// #include <atomic>            
+// #include <chrono>            
+// #include <fstream>           
+// #include <iostream>         
+// #include <string>            
+// #include <thread>            
+// #include <vector>            
 
-// void ioWorker(int id) {
-//     std::vector<char> buffer(CHUNK_SIZE, 'A'); // dados de teste
-//     while (running.load()) {
-//         std::string filename = "temp_io_test_" + std::to_string(id) + ".tmp";
+// std::atomic<bool> rodando{true}; // flag de controle compartilhada
 
-//         // Criar e escrever
-//         {
-//             std::ofstream out(filename, std::ios::binary);
-//             if (out.is_open()) {
-//                 out.write(buffer.data(), buffer.size());
+// long unsigned int buff = 100;
+// // função que escreve continuamente no arquivo (append)
+// void escritorIO(const std::string &caminho, int id) {
+//     std::ofstream saida;
+//     // abre em append binário (mantém arquivo já existente e escreve ao final)
+//     saida.open(caminho, std::ios::binary | std::ios::app);
+//     if (!saida.is_open()) {
+//         std::cerr << "Thread " << id << ": falha ao abrir arquivo " << caminho << "\n";
+//         return; // não conseguiu abrir → termina a thread
+//     }
+
+//     // buffer preenchido com um byte identificador (id)
+//     std::vector<char> buffer(buff, static_cast<char>(id));
+//     while (rodando.load()) {
+//         saida.write(buffer.data(), static_cast<long int>(buffer.size())); // escreve bloco no arquivo
+//         saida.flush();                             // força flush para dispositivo (fazer I/O real)
+//         // pequena espera para evitar travar toda a fila de I/O imediatamente
+//         std::this_thread::sleep_for(std::chrono::milliseconds(5));
+//     }
+//     saida.close(); // fecha arquivo ao terminar
+// }
+
+// // função que lê metadados/abre arquivo periodicamente (gera leitura leve)
+// void leitorIO(const std::string &caminho) {
+//     std::vector<char> buffer(buff); // buffer
+//     while (rodando.load()) {
+//         std::ifstream entrada(caminho, std::ios::binary);
+//         if (entrada.is_open()) {
+//             while (entrada.read(buffer.data(), static_cast<long int>(buffer.size()))) {
+//                 // Apenas lê, não faz nada com os dados
 //             }
+//             // Para ler o último pedaço, que pode ser menor que buffer.size()
+//             entrada.read(buffer.data(), static_cast<long int>(buffer.size()));
+//             entrada.close();
 //         }
-
-//         // Ler
-//         {
-//             std::ifstream in(filename, std::ios::binary);
-//             if (in.is_open()) {
-//                 std::vector<char> readBuffer(CHUNK_SIZE);
-//                 in.read(readBuffer.data(), readBuffer.size());
-//             }
-//         }
-
-//         // Deletar
-//         std::filesystem::remove(filename);
-
-//         std::this_thread::sleep_for(std::chrono::milliseconds(10)); // leve pausa
+//         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 //     }
 // }
 
 // int main() {
-//     std::cout << "Iniciando I/O contínuo temporário com " << NUM_THREADS << " threads...\n";
+//     unsigned int numeroWriters = std::max(1u, std::thread::hardware_concurrency() / 2);
+//     // caminho padrão; pode ser alterado para qualquer diretório com permissão de escrita
+//     std::string caminhoArquivo = "/tmp/teste_io.bin";
+
+//     std::cout << "Teste I/O: " << numeroWriters << " writers para '" << caminhoArquivo << "'\n";
 //     std::cout << "Pressione ENTER para parar.\n";
 
-//     std::vector<std::thread> threads;
-//     for (int i = 0; i < NUM_THREADS; ++i) {
-//         threads.emplace_back(ioWorker, i);
-//     }
+//     std::vector<std::thread> threads; // container de threads
+//     for (unsigned int i = 0; i < numeroWriters; ++i)
+//         threads.emplace_back(escritorIO, caminhoArquivo, (int)i); // cria writers
 
-//     std::cin.get(); // espera Enter
-//     running = false;
+//     // adiciona um leitor de metadados para gerar operações de leitura
+//     threads.emplace_back(leitorIO, caminhoArquivo);
 
-//     for (auto& t : threads) {
-//         t.join();
-//     }
+//     std::cin.get();            // espera ENTER
+//     rodando.store(false);      // sinaliza parada
 
-//     std::cout << "I/O finalizado. Verifique rchar/wchar em /proc/[pid]/io\n";
+//     for (auto &t : threads) if (t.joinable()) t.join(); // aguarda finalização
+//     std::cout << "Teste I/O finalizado. arquivo: " << caminhoArquivo << "\n";
 //     return 0;
 // }
