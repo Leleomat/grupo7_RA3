@@ -209,7 +209,7 @@ void cgroupManager() {
 void resourceProfiler(){
     entrada:
     int PID = escolherPID();
-    unsigned int intervalo;
+    double intervalo;
 
     while(true){
     std::cout << "\nInsira o intervalo de monitoramento, em segundos: ";
@@ -261,14 +261,14 @@ void resourceProfiler(){
             double tempoCPUAtual = medicaoAtual.utime + medicaoAtual.stime;
             double tempoCPUAnterior = medicaoAnterior.utime + medicaoAnterior.stime;
             double deltaCPU = tempoCPUAtual - tempoCPUAnterior;
-            double usoCPU = (deltaCPU/static_cast<double>(intervalo))*100;
+            double usoCPU = (deltaCPU/intervalo)*100;
             double usoCPUGlobal = usoCPU/(static_cast<double>(sysconf(_SC_NPROCESSORS_ONLN)));
 
             //Cálculo das métricas de I/O (em KB)
-            double taxaleituraDisco = (static_cast<double>(medicaoAtual.bytesLidos-medicaoAnterior.bytesLidos)/static_cast<double>(intervalo))/1024;
-            double taxaleituraTotal = (static_cast<double>(medicaoAtual.rchar-medicaoAnterior.rchar)/static_cast<double>(intervalo))/1024;
-            double taxaEscritaDisco = (static_cast<double>(medicaoAtual.bytesEscritos-medicaoAnterior.bytesEscritos)/static_cast<double>(intervalo))/1024;
-            double  taxaEscritaTotal = (static_cast<double>(medicaoAtual.wchar-medicaoAnterior.wchar)/static_cast<double>(intervalo))/1024;
+            double taxaleituraDisco = (static_cast<double>(medicaoAtual.bytesLidos-medicaoAnterior.bytesLidos)/intervalo)/1024;
+            double taxaleituraTotal = (static_cast<double>(medicaoAtual.rchar-medicaoAnterior.rchar)/intervalo)/1024;
+            double taxaEscritaDisco = (static_cast<double>(medicaoAtual.bytesEscritos-medicaoAnterior.bytesEscritos)/intervalo)/1024;
+            double  taxaEscritaTotal = (static_cast<double>(medicaoAtual.wchar-medicaoAnterior.wchar)/intervalo)/1024;
 
             resultado.usoCPU = usoCPU;
             resultado.usoCPUGlobal = usoCPUGlobal;
@@ -282,7 +282,7 @@ void resourceProfiler(){
             "================================================================================\n"
             "|                                MEDIÇÃO (Processo %d)                          \n"
             "================================================================================\n"
-            "| Intervalo de monitoramento: %3u segundos                                      |\n"
+            "| Intervalo de monitoramento: %3.2f segundos                                      |\n"
             "--------------------------------------------------------------------------------\n"
             "| CPU                      |            |\n"
             "-----------------------------------------\n"
@@ -319,13 +319,11 @@ void resourceProfiler(){
             "-----------------------------------------\n"
             "| Network                  |            |\n"
             "-----------------------------------------\n"
-            "| Bytes enviados (TX)      | %-10lu |\n"
-            "| Bytes recebidos (RX)     | %-10lu |\n"
-            "| Pacotes enviados         | %-10lu |\n"
-            "| Pacotes recebidos        | %-10lu |\n"
-            "| Conexões ativas          | %-10u |\n"
+            "| Bytes em fila (TX)       | %-10lu  |\n"
+            "| Bytes em fila (RX)       | %-10lu  |\n"
+            "| Conexões ativas          | %-10u  |\n"
             "=========================================\n"
-            "| Próxima medição em %3u segundos...    |\n"
+            "| Próxima medição em %3.2f segundos...    |\n"
             "=========================================\n\n\n\n\n",
             medicaoAtual.PID, intervalo,
             medicaoAtual.utime, medicaoAtual.stime, usoCPU, usoCPUGlobal,
@@ -334,8 +332,7 @@ void resourceProfiler(){
             medicaoAtual.minfault, medicaoAtual.mjrfault,
             medicaoAtual.syscallLeitura, medicaoAtual.syscallEscrita,
             taxaleituraDisco, taxaleituraTotal, taxaEscritaDisco, taxaEscritaTotal,
-            medicaoAtual.bytesTx, medicaoAtual.bytesRx,
-            medicaoAtual.pacotesEnviados, medicaoAtual.pacotesRecebidos,
+            medicaoAtual.bytesTxfila, medicaoAtual.bytesRxfila,
             medicaoAtual.conexoesAtivas,
             intervalo
             );
@@ -387,7 +384,7 @@ void resourceProfiler(){
         }
         }
         medicaoAnterior = medicaoAtual;
-        std::this_thread::sleep_for(std::chrono::seconds(intervalo));
+        std::this_thread::sleep_for(std::chrono::duration<double>(intervalo));
     }
     }
 }

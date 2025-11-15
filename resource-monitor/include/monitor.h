@@ -22,10 +22,8 @@ struct StatusProcesso{
     unsigned long rchar;
     unsigned long wchar;
     //Network
-    unsigned long bytesRx;
-    unsigned long bytesTx;
-    unsigned long pacotesRecebidos;
-    unsigned long pacotesEnviados;
+    unsigned long bytesRxfila;
+    unsigned long bytesTxfila;
     unsigned int conexoesAtivas;
 };
 
