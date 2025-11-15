@@ -1,4 +1,4 @@
-﻿﻿#include "cgroup.h"
+﻿#include "cgroup.h"
 #include "monitor.h"
 #include "namespace.h"
 #include <iostream>
@@ -467,9 +467,6 @@ entrada:
         }
     }
 }
-
-
-
 
 // =========================================
 // FUNÇÃO PARA O ANALISADOR DE NAMESPACE
