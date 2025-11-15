@@ -31,19 +31,21 @@ bool processoExiste(int PID) {
 
 void salvarMedicoesCSV(const StatusProcesso& medicao, const calculoMedicao& calculado)
 {
-
-    //const std::string path = "docs/dados" + std::to_string(medicao.PID) +".csv";
-
+    // Obtém o diretório atual do programa
     std::filesystem::path base = std::filesystem::current_path();
-    base = base.parent_path().parent_path().parent_path();
+    // Sobe 1 nível na hierarquia de pastas
+    base = base.parent_path();
+    // Constrói o path completo para o arquivo CSV: [base]/docs/dados[PID].csv
     std::filesystem::path path = base / "docs" / ("dados" + std::to_string(medicao.PID) + ".csv");
 
-
+    // Verifica se o arquivo é novo (não existe ou está vazio)
     bool novo = !std::filesystem::exists(path) || std::filesystem::file_size(path) == 0;
 
+    // Abre o arquivo em modo append (adiciona no final)
     std::ofstream f(path, std::ios::app);
-    if (!f) return;
+    if (!f) return; // Sai se não conseguiu abrir o arquivo
 
+    // Se o arquivo é novo, escreve o cabeçalho CSV
     if (novo) {
         f << "timestamp,PID,utime,stime,threads,contextSwitchfree,contextSwitchforced,"
             "vmSize_kB,vmRss_kB,vmSwap_kB,minfault,mjrfault,bytesLidos,bytesEscritos,"
@@ -52,38 +54,39 @@ void salvarMedicoesCSV(const StatusProcesso& medicao, const calculoMedicao& calc
             "taxaEscritaDisco_KiB_s,taxaEscritaTotal_KiB_s\n";
     }
 
-    // timestamp UTC
-    std::time_t t = std::time(nullptr);
+    // Obtém timestamp UTC atual
+    std::time_t t = std::time(nullptr); // tempo atual em segundos desde epoch
     std::tm tm;
-    gmtime_r(&t, &tm);
+    gmtime_r(&t, &tm); // converte para UTC
     char ts[32];
-    std::strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &tm);
+    std::strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &tm); // formata em ISO 8601
 
-    f << ts << ","
-        << medicao.PID << ","
-        << medicao.utime << ","
-        << medicao.stime << ","
-        << medicao.threads << ","
-        << medicao.contextSwitchfree << ","
-        << medicao.contextSwitchforced << ","
-        << medicao.vmSize << ","
-        << medicao.vmRss << ","
-        << medicao.vmSwap << ","
-        << medicao.minfault << ","
-        << medicao.mjrfault << ","
-        << medicao.bytesLidos << ","
-        << medicao.bytesEscritos << ","
-        << medicao.rchar << ","
-        << medicao.wchar << ","
-        << medicao.syscallLeitura << ","
-        << medicao.syscallEscrita << ","
-        << calculado.usoCPU << ","
-        << calculado.usoCPUGlobal << ","
-        << calculado.taxaLeituraDisco << ","
-        << calculado.taxaLeituraTotal << ","
-        << calculado.taxaEscritaDisco << ","
-        << calculado.taxaEscritaTotal
-        << "\n";
+    // Escreve uma linha no CSV com os dados do processo e métricas calculadas
+    f << ts << ","                            // timestamp
+        << medicao.PID << ","                 // PID do processo
+        << medicao.utime << ","               // tempo CPU usuário (s)
+        << medicao.stime << ","               // tempo CPU kernel (s)
+        << medicao.threads << ","             // número de threads
+        << medicao.contextSwitchfree << ","   // context switches voluntários
+        << medicao.contextSwitchforced << "," // context switches forçados
+        << medicao.vmSize << ","               // tamanho virtual (kB)
+        << medicao.vmRss << ","                // memória residente (kB)
+        << medicao.vmSwap << ","               // swap usado (kB)
+        << medicao.minfault << ","             // page faults menores
+        << medicao.mjrfault << ","             // page faults maiores
+        << medicao.bytesLidos << ","           // bytes lidos do disco
+        << medicao.bytesEscritos << ","        // bytes escritos no disco
+        << medicao.rchar << ","                // bytes lidos via syscall read
+        << medicao.wchar << ","                // bytes escritos via syscall write
+        << medicao.syscallLeitura << ","       // número de syscalls read
+        << medicao.syscallEscrita << ","       // número de syscalls write
+        << calculado.usoCPU << ","             // CPU % do processo
+        << calculado.usoCPUGlobal << ","       // CPU % global
+        << calculado.taxaLeituraDisco << ","   // taxa leitura disco (KiB/s)
+        << calculado.taxaLeituraTotal << ","   // taxa leitura total (KiB/s)
+        << calculado.taxaEscritaDisco << ","   // taxa escrita disco (KiB/s)
+        << calculado.taxaEscritaTotal          // taxa escrita total (KiB/s)
+        << "\n";                               // fim de linha
 }
 
 std::vector<ProcessInfo> listarProcessos() {
@@ -155,7 +158,7 @@ void executarExperimentos() {
     do {
         std::cout << "\n\033[1;36m======================= EXPERIMENTOS =======================\033[0m\n";
         std::cout << "\n\033[1;33m========================== CGROUP ==========================\033[0m\n";
-        std::cout << "\033[1m"; // deixa opções em negrito
+        std::cout << "\033[1m"; // deixa opções em negrito                                               
         std::cout << " 1. Experimento nº3 – Throttling de CPU\n";
         std::cout << " 2. Experimento nº4 – Limite de Memória\n";
         std::cout << "\033[0m";
@@ -185,7 +188,7 @@ void executarExperimentos() {
 			overheadMonitoramento();
 		}
 		else if (sub == 5) {
-			std::cout << "OPÇÃO AINDA NÃO IMPLEMENTADA.\n";
+			limitacaoIO();
 		}
         else if (sub != 0) {
             std::cout << "Opção inválida.\n";
@@ -278,48 +281,57 @@ void cgroupManager() {
 // FUNÇÃO PARA O Perfilador de Recursos
 // =========================================
 void resourceProfiler() {
-entrada:
-    int PID = escolherPID();
-    double intervalo;
+entrada: // label usado para reiniciar o monitor caso haja erro de coleta
+    int PID = escolherPID(); // chama função que retorna PID do processo a ser monitorado
+    double intervalo; // intervalo de coleta em segundos
 
-    std::cout << "\033[1;36m"; // ciano em negrito
+    // Impressão do cabeçalho estilizado do Resource Profiler
+    std::cout << "\033[1;36m"; // muda cor para ciano em negrito
     std::cout << "\n============================================================\n";
     std::cout << "                       Resource Profiler                     \n";
     std::cout << "============================================================\n";
-    std::cout << "\033[0m"; // reseta as cores pro resto do texto
+    std::cout << "\033[0m"; // reseta cores para o restante do texto
 
-
+    // Solicita ao usuário o intervalo de monitoramento
     while (true) {
         std::cout << "\nInsira o intervalo de monitoramento, em segundos: ";
         std::cin >> intervalo;
         bool flagInsert = true;
 
+        // Verifica se a entrada foi válida
         if (std::cin.fail()) {
-            std::cin.clear();
-            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            std::cin.clear(); // limpa estado de erro do cin
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // descarta entrada inválida
             std::cout << "Entrada inválida. Tente novamente.\n";
             flagInsert = false;
         }
         if (flagInsert) {
-            break;
+            break; // sai do loop se a entrada foi válida
         }
     }
+
+    // Inicializa structs para armazenar medições
     StatusProcesso medicaoAnterior;
     StatusProcesso medicaoAtual;
-    medicaoAtual.PID = PID;
-    bool flagMedicao = true;
-    int contador = 0;
+    medicaoAtual.PID = PID; // atribui PID atual
+    bool flagMedicao = true; // flag para primeira medição
+    int contador = 0; // contador de ciclos de medição
 
+    // Loop principal de monitoramento
     while (true) {
 
+        // Coleta dados de CPU, memória, I/O e rede
         if (!(coletorCPU(medicaoAtual) && coletorMemoria(medicaoAtual) && coletorIO(medicaoAtual) && coletorNetwork(medicaoAtual))) {
+            // Se falhar na coleta, reinicia a entrada
             std::cout << "\nFalha ao acessar dados do processo\n";
             std::cout << "Reiniciando...\n";
             goto entrada;
         }
         else {
-            //criação e atualização CSV
+            // Criação e atualização do CSV
             calculoMedicao resultado;
+
+            // Se for a primeira medição, inicializa métricas com zero
             if (flagMedicao) {
                 resultado.usoCPU = 0;
                 resultado.usoCPUGlobal = 0;
@@ -327,37 +339,40 @@ entrada:
                 resultado.taxaLeituraTotal = 0;
                 resultado.taxaEscritaDisco = 0;
                 resultado.taxaEscritaTotal = 0;
-                salvarMedicoesCSV(medicaoAtual, resultado);
+                salvarMedicoesCSV(medicaoAtual, resultado); // salva primeira linha
             }
 
             if (flagMedicao) {
                 std::cout << "Primeira medição detectada... \n";
                 std::cout << "Dados e métricas serão mostrados a partir da segunda medição, por favor espere " << intervalo << " segundos... \n";
-                flagMedicao = false;
+                flagMedicao = false; // desativa flag de primeira medição
             }
             else {
-
-                //Calculo das métricas de CPU
+                // Calcula métricas de CPU
                 double tempoCPUAtual = medicaoAtual.utime + medicaoAtual.stime;
                 double tempoCPUAnterior = medicaoAnterior.utime + medicaoAnterior.stime;
-                double deltaCPU = tempoCPUAtual - tempoCPUAnterior;
-                double usoCPU = (deltaCPU / intervalo) * 100;
-                double usoCPUGlobal = usoCPU / (static_cast<double>(sysconf(_SC_NPROCESSORS_ONLN)));
+                double deltaCPU = tempoCPUAtual - tempoCPUAnterior; // tempo CPU decorrido
+                double usoCPU = (deltaCPU / intervalo) * 100; // uso percentual do processo
+                double usoCPUGlobal = usoCPU / (static_cast<double>(sysconf(_SC_NPROCESSORS_ONLN))); // uso relativo por core
 
-                //Cálculo das métricas de I/O (em KB)
+                // Calcula métricas de I/O em KiB/s
                 double taxaleituraDisco = (static_cast<double>(medicaoAtual.bytesLidos - medicaoAnterior.bytesLidos) / intervalo) / 1024;
                 double taxaleituraTotal = (static_cast<double>(medicaoAtual.rchar - medicaoAnterior.rchar) / intervalo) / 1024;
                 double taxaEscritaDisco = (static_cast<double>(medicaoAtual.bytesEscritos - medicaoAnterior.bytesEscritos) / intervalo) / 1024;
-                double  taxaEscritaTotal = (static_cast<double>(medicaoAtual.wchar - medicaoAnterior.wchar) / intervalo) / 1024;
+                double taxaEscritaTotal = (static_cast<double>(medicaoAtual.wchar - medicaoAnterior.wchar) / intervalo) / 1024;
 
+                // Armazena resultados no struct
                 resultado.usoCPU = usoCPU;
                 resultado.usoCPUGlobal = usoCPUGlobal;
                 resultado.taxaLeituraDisco = taxaleituraDisco;
                 resultado.taxaLeituraTotal = taxaleituraTotal;
                 resultado.taxaEscritaDisco = taxaEscritaDisco;
                 resultado.taxaEscritaTotal = taxaEscritaTotal;
+
+                // Salva no CSV
                 salvarMedicoesCSV(medicaoAtual, resultado);
 
+                // Imprime tabela detalhada com as métricas coletadas
                 printf(
                     "================================================================================\n"
                     "|                                MEDIÇÃO (Processo %d)                          \n"
@@ -418,7 +433,11 @@ entrada:
                 );
 
             }
+
+            // Incrementa contador de ciclos
             contador++;
+
+            // A cada 5 ciclos, pergunta ao usuário se deseja encerrar
             if (contador == 5) {
                 int escolha;
                 while (true) {
@@ -432,9 +451,11 @@ entrada:
                         flagInsert = false;
                     }
                     if (flagInsert) {
-                        break;
+                        break; // sai se entrada válida
                     }
                 }
+
+                // Se usuário quiser encerrar
                 if (escolha == 1) {
                     while (true) {
                         std::cout << "Certo, você quer monitorar outro processo ou sair do resource profiler? (1 -> sair/0 -> outro processo): \n";
@@ -450,19 +471,23 @@ entrada:
                             break;
                         }
                     }
+
                     if (escolha == 0) {
-                        goto entrada;
+                        goto entrada; // reinicia monitoramento para outro PID
                     }
                     else {
-                        break;
+                        break; // sai do loop principal
                     }
                 }
                 else {
                     std::cout << "O processo de PID: " << medicaoAtual.PID << " será monitorado por mais 5 ciclos... \n";
-                    contador = 0;
+                    contador = 0; // reseta contador
                 }
             }
+
+            // Atualiza medição anterior para calcular deltas no próximo ciclo
             medicaoAnterior = medicaoAtual;
+            // Aguarda intervalo definido antes da próxima coleta
             std::this_thread::sleep_for(std::chrono::duration<double>(intervalo));
         }
     }
