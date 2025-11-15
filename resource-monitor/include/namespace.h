@@ -16,6 +16,8 @@ void listNamespaces(int pid);
 void compareNamespaces(int pid1, int pid2);
 void findProcessesInNamespace(const std::string& nsType, const std::string& nsId);
 void reportSystemNamespaces();
-void measureNamespaceOverhead();
+void executarExperimentoIsolamento();
+void reportProcessCountsPerNamespace();
+void gerarRelatorioGeralCompleto();
 
 #endif
