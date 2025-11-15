@@ -1,4 +1,4 @@
-﻿#include "cgroup.h"
+﻿﻿#include "cgroup.h"
 #include "monitor.h"
 #include "namespace.h"
 #include <iostream>
@@ -20,13 +20,13 @@
 namespace fs = std::filesystem;
 
 struct ProcessInfo {
-    int pid;
-    std::string name;
+	int pid;
+	std::string name;
 };
 
 bool processoExiste(int PID) {
-    std::filesystem::path dir = "/proc/" + std::to_string(PID);
-    return std::filesystem::exists(dir) && std::filesystem::is_directory(dir);
+	std::filesystem::path dir = "/proc/" + std::to_string(PID);
+	return std::filesystem::exists(dir) && std::filesystem::is_directory(dir);
 }
 
 void salvarMedicoesCSV(const StatusProcesso& medicao, const calculoMedicao& calculado)
@@ -46,10 +46,10 @@ void salvarMedicoesCSV(const StatusProcesso& medicao, const calculoMedicao& calc
 
     if (novo) {
         f << "timestamp,PID,utime,stime,threads,contextSwitchfree,contextSwitchforced,"
-             "vmSize_kB,vmRss_kB,vmSwap_kB,minfault,mjrfault,bytesLidos,bytesEscritos,"
-             "rchar,wchar,syscallLeitura,syscallEscrita,"
-             "usoCPU_pct,usoCPUGlobal_pct,taxaLeituraDisco_KiB_s,taxaLeituraTotal_KiB_s,"
-             "taxaEscritaDisco_KiB_s,taxaEscritaTotal_KiB_s\n";
+            "vmSize_kB,vmRss_kB,vmSwap_kB,minfault,mjrfault,bytesLidos,bytesEscritos,"
+            "rchar,wchar,syscallLeitura,syscallEscrita,"
+            "usoCPU_pct,usoCPUGlobal_pct,taxaLeituraDisco_KiB_s,taxaLeituraTotal_KiB_s,"
+            "taxaEscritaDisco_KiB_s,taxaEscritaTotal_KiB_s\n";
     }
 
     // timestamp UTC
@@ -60,92 +60,92 @@ void salvarMedicoesCSV(const StatusProcesso& medicao, const calculoMedicao& calc
     std::strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &tm);
 
     f << ts << ","
-      << medicao.PID << ","
-      << medicao.utime << ","
-      << medicao.stime << ","
-      << medicao.threads << ","
-      << medicao.contextSwitchfree << ","
-      << medicao.contextSwitchforced << ","
-      << medicao.vmSize << ","
-      << medicao.vmRss << ","
-      << medicao.vmSwap << ","
-      << medicao.minfault << ","
-      << medicao.mjrfault << ","
-      << medicao.bytesLidos << ","
-      << medicao.bytesEscritos << ","
-      << medicao.rchar << ","
-      << medicao.wchar << ","
-      << medicao.syscallLeitura << ","
-      << medicao.syscallEscrita << ","
-      << calculado.usoCPU << ","
-      << calculado.usoCPUGlobal << ","
-      << calculado.taxaLeituraDisco << ","
-      << calculado.taxaLeituraTotal << ","
-      << calculado.taxaEscritaDisco << ","
-      << calculado.taxaEscritaTotal
-      << "\n";
+        << medicao.PID << ","
+        << medicao.utime << ","
+        << medicao.stime << ","
+        << medicao.threads << ","
+        << medicao.contextSwitchfree << ","
+        << medicao.contextSwitchforced << ","
+        << medicao.vmSize << ","
+        << medicao.vmRss << ","
+        << medicao.vmSwap << ","
+        << medicao.minfault << ","
+        << medicao.mjrfault << ","
+        << medicao.bytesLidos << ","
+        << medicao.bytesEscritos << ","
+        << medicao.rchar << ","
+        << medicao.wchar << ","
+        << medicao.syscallLeitura << ","
+        << medicao.syscallEscrita << ","
+        << calculado.usoCPU << ","
+        << calculado.usoCPUGlobal << ","
+        << calculado.taxaLeituraDisco << ","
+        << calculado.taxaLeituraTotal << ","
+        << calculado.taxaEscritaDisco << ","
+        << calculado.taxaEscritaTotal
+        << "\n";
 }
 
 std::vector<ProcessInfo> listarProcessos() {
-    std::vector<ProcessInfo> lista;
+	std::vector<ProcessInfo> lista;
 
-    for (const auto& entry : fs::directory_iterator("/proc")) {
-        if (!entry.is_directory()) continue;
+	for (const auto& entry : fs::directory_iterator("/proc")) {
+		if (!entry.is_directory()) continue;
 
-        const std::string dir = entry.path().filename().string();
-        if (!std::all_of(dir.begin(), dir.end(), ::isdigit)) continue;
+		const std::string dir = entry.path().filename().string();
+		if (!std::all_of(dir.begin(), dir.end(), ::isdigit)) continue;
 
-        int pid = std::stoi(dir);
-        std::ifstream cmdline("/proc/" + dir + "/comm");
-        std::string nome;
-        if (cmdline.good())
-            std::getline(cmdline, nome);
+		int pid = std::stoi(dir);
+		std::ifstream cmdline("/proc/" + dir + "/comm");
+		std::string nome;
+		if (cmdline.good())
+			std::getline(cmdline, nome);
 
-        if (!nome.empty())
-            lista.push_back({ pid, nome });
-    }
-    return lista;
+		if (!nome.empty())
+			lista.push_back({ pid, nome });
+	}
+	return lista;
 }
 
 int escolherPID() {
-    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+	std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
-    auto processos = listarProcessos();
+	auto processos = listarProcessos();
 
-    std::cout << "\n\033[1;33m=================== Processos disponiveis ==================\033[0m\n";
-    for (const auto& p : processos) {
-        std::cout << "PID: " << std::left << std::setw(25) << p.pid << "\tNome: " << p.name << "\n";
-    }
+	std::cout << "\n\033[1;33m=================== Processos disponiveis ==================\033[0m\n";
+	for (const auto& p : processos) {
+		std::cout << "PID: " << std::left << std::setw(25) << p.pid << "\tNome: " << p.name << "\n";
+	}
 
-    int pid;
-    bool valido = false;
+	int pid;
+	bool valido = false;
 
-    do {
-        std::cout << "\nDigite o número do PID escolhido: ";
-        std::cin >> pid;
+	do {
+		std::cout << "\nDigite o número do PID escolhido: ";
+		std::cin >> pid;
 
-        if (std::cin.fail()) {
-            std::cin.clear();
-            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-            std::cout << "Entrada inválida. Tente novamente.\n";
-            continue;
-        }
+		if (std::cin.fail()) {
+			std::cin.clear();
+			std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+			std::cout << "Entrada inválida. Tente novamente.\n";
+			continue;
+		}
 
-        for (const auto& p : processos) {
-            if (p.pid == pid) {
-                if (processoExiste(pid)) {
-                    valido = true;
-                    break;
-                }
-            }
-        }
+		for (const auto& p : processos) {
+			if (p.pid == pid) {
+				if (processoExiste(pid)) {
+					valido = true;
+					break;
+				}
+			}
+		}
 
-        if (!valido)
-            std::cout << "PID não encontrado entre os processos listados.\n";
+		if (!valido)
+			std::cout << "PID não encontrado entre os processos listados.\n";
 
-    } while (!valido);
+	} while (!valido);
 
-    return pid;
+	return pid;
 }
 
 void executarExperimentos() {
@@ -153,23 +153,23 @@ void executarExperimentos() {
 
     int sub = -1;
     do {
-		std::cout << "\n\033[1;36m======================= EXPERIMENTOS =======================\033[0m\n";
+        std::cout << "\n\033[1;36m======================= EXPERIMENTOS =======================\033[0m\n";
         std::cout << "\n\033[1;33m========================== CGROUP ==========================\033[0m\n";
-		std::cout << "\033[1m"; // deixa opções em negrito
+        std::cout << "\033[1m"; // deixa opções em negrito
         std::cout << " 1. Experimento nº3 – Throttling de CPU\n";
         std::cout << " 2. Experimento nº4 – Limite de Memória\n";
-		std::cout << "\033[0m";
-		std::cout << "\n\033[1;33m======================== NAMESPACE =========================\033[0m\n";
-		std::cout << "\033[1m"; // deixa opções em negrito
-		std::cout << " 3. Experimento nº2 - Isolamento via Namespaces\n";
-		std::cout << "\033[0m";
-		std::cout << "\n\033[1;33m======================== PROFILER ==========================\033[0m\n";
-		std::cout << "\033[1m"; // deixa opções em negrito
-		std::cout << " 4. Experimento nº1 - Overhead de Monitoramento\n";
-		std::cout << " 5. Experimento nº5 - Limitação de I/O\n\n";
+        std::cout << "\033[0m";
+        std::cout << "\n\033[1;33m======================== NAMESPACE =========================\033[0m\n";
+        std::cout << "\033[1m"; // deixa opções em negrito
+        std::cout << " 3. Experimento nº2 - Isolamento via Namespaces\n";
+        std::cout << "\033[0m";
+        std::cout << "\n\033[1;33m======================== PROFILER ==========================\033[0m\n";
+        std::cout << "\033[1m"; // deixa opções em negrito
+        std::cout << " 4. Experimento nº1 - Overhead de Monitoramento\n";
+        std::cout << " 5. Experimento nº5 - Limitação de I/O\n\n";
         std::cout << " 0. Voltar ao menu principal.\n";
         std::cout << " Escolha: ";
-		std::cout << "\033[0m";
+        std::cout << "\033[0m";
         std::cin >> sub;
 
         if (sub == 1) {
@@ -279,192 +279,193 @@ void cgroupManager() {
 // =========================================
 void resourceProfiler() {
 entrada:
-	int PID = escolherPID();
-	double intervalo;
+    int PID = escolherPID();
+    double intervalo;
 
-	std::cout << "\033[1;36m"; // ciano em negrito
-	std::cout << "\n============================================================\n";
-	std::cout << "                       Resource Profiler                     \n";
-	std::cout << "============================================================\n";
-	std::cout << "\033[0m"; // reseta as cores pro resto do texto
+    std::cout << "\033[1;36m"; // ciano em negrito
+    std::cout << "\n============================================================\n";
+    std::cout << "                       Resource Profiler                     \n";
+    std::cout << "============================================================\n";
+    std::cout << "\033[0m"; // reseta as cores pro resto do texto
 
 
-	while (true) {
-		std::cout << "\nInsira o intervalo de monitoramento, em segundos: ";
-		std::cin >> intervalo;
-		bool flagInsert = true;
+    while (true) {
+        std::cout << "\nInsira o intervalo de monitoramento, em segundos: ";
+        std::cin >> intervalo;
+        bool flagInsert = true;
 
-		if (std::cin.fail()) {
-			std::cin.clear();
-			std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-			std::cout << "Entrada inválida. Tente novamente.\n";
-			flagInsert = false;
-		}
-		if (flagInsert) {
-			break;
-		}
-	}
-	StatusProcesso medicaoAnterior;
-	StatusProcesso medicaoAtual;
-	medicaoAtual.PID = PID;
-	bool flagMedicao = true;
-	int contador = 0;
+        if (std::cin.fail()) {
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            std::cout << "Entrada inválida. Tente novamente.\n";
+            flagInsert = false;
+        }
+        if (flagInsert) {
+            break;
+        }
+    }
+    StatusProcesso medicaoAnterior;
+    StatusProcesso medicaoAtual;
+    medicaoAtual.PID = PID;
+    bool flagMedicao = true;
+    int contador = 0;
 
-	while (true) {
+    while (true) {
 
-		if (!(coletorCPU(medicaoAtual) && coletorMemoria(medicaoAtual) && coletorIO(medicaoAtual) && coletorNetwork(medicaoAtual))) {
-			std::cout << "\nFalha ao acessar dados do processo\n";
-			std::cout << "Reiniciando...\n";
-			goto entrada;
-		}
-		else {
-			//criação e atualização CSV
-			calculoMedicao resultado;
-			if (flagMedicao) {
-				resultado.usoCPU = 0;
-				resultado.usoCPUGlobal = 0;
-				resultado.taxaLeituraDisco = 0;
-				resultado.taxaLeituraTotal = 0;
-				resultado.taxaEscritaDisco = 0;
-				resultado.taxaEscritaTotal = 0;
-				salvarMedicoesCSV(medicaoAtual, resultado);
-			}
+        if (!(coletorCPU(medicaoAtual) && coletorMemoria(medicaoAtual) && coletorIO(medicaoAtual) && coletorNetwork(medicaoAtual))) {
+            std::cout << "\nFalha ao acessar dados do processo\n";
+            std::cout << "Reiniciando...\n";
+            goto entrada;
+        }
+        else {
+            //criação e atualização CSV
+            calculoMedicao resultado;
+            if (flagMedicao) {
+                resultado.usoCPU = 0;
+                resultado.usoCPUGlobal = 0;
+                resultado.taxaLeituraDisco = 0;
+                resultado.taxaLeituraTotal = 0;
+                resultado.taxaEscritaDisco = 0;
+                resultado.taxaEscritaTotal = 0;
+                salvarMedicoesCSV(medicaoAtual, resultado);
+            }
 
-        if(flagMedicao){
-            std::cout << "Primeira medição detectada... \n";
-            std::cout << "Dados e métricas serão mostrados a partir da segunda medição, por favor espere " << intervalo << " segundos... \n";
-            flagMedicao = false;
-        }else{
-            
-            //Calculo das métricas de CPU
-            double tempoCPUAtual = medicaoAtual.utime + medicaoAtual.stime;
-            double tempoCPUAnterior = medicaoAnterior.utime + medicaoAnterior.stime;
-            double deltaCPU = tempoCPUAtual - tempoCPUAnterior;
-            double usoCPU = (deltaCPU/intervalo)*100;
-            double usoCPUGlobal = usoCPU/(static_cast<double>(sysconf(_SC_NPROCESSORS_ONLN)));
+            if (flagMedicao) {
+                std::cout << "Primeira medição detectada... \n";
+                std::cout << "Dados e métricas serão mostrados a partir da segunda medição, por favor espere " << intervalo << " segundos... \n";
+                flagMedicao = false;
+            }
+            else {
 
-            //Cálculo das métricas de I/O (em KB)
-            double taxaleituraDisco = (static_cast<double>(medicaoAtual.bytesLidos-medicaoAnterior.bytesLidos)/intervalo)/1024;
-            double taxaleituraTotal = (static_cast<double>(medicaoAtual.rchar-medicaoAnterior.rchar)/intervalo)/1024;
-            double taxaEscritaDisco = (static_cast<double>(medicaoAtual.bytesEscritos-medicaoAnterior.bytesEscritos)/intervalo)/1024;
-            double  taxaEscritaTotal = (static_cast<double>(medicaoAtual.wchar-medicaoAnterior.wchar)/intervalo)/1024;
+                //Calculo das métricas de CPU
+                double tempoCPUAtual = medicaoAtual.utime + medicaoAtual.stime;
+                double tempoCPUAnterior = medicaoAnterior.utime + medicaoAnterior.stime;
+                double deltaCPU = tempoCPUAtual - tempoCPUAnterior;
+                double usoCPU = (deltaCPU / intervalo) * 100;
+                double usoCPUGlobal = usoCPU / (static_cast<double>(sysconf(_SC_NPROCESSORS_ONLN)));
 
-				resultado.usoCPU = usoCPU;
-				resultado.usoCPUGlobal = usoCPUGlobal;
-				resultado.taxaLeituraDisco = taxaleituraDisco;
-				resultado.taxaLeituraTotal = taxaleituraTotal;
-				resultado.taxaEscritaDisco = taxaEscritaDisco;
-				resultado.taxaEscritaTotal = taxaEscritaTotal;
-				salvarMedicoesCSV(medicaoAtual, resultado);
+                //Cálculo das métricas de I/O (em KB)
+                double taxaleituraDisco = (static_cast<double>(medicaoAtual.bytesLidos - medicaoAnterior.bytesLidos) / intervalo) / 1024;
+                double taxaleituraTotal = (static_cast<double>(medicaoAtual.rchar - medicaoAnterior.rchar) / intervalo) / 1024;
+                double taxaEscritaDisco = (static_cast<double>(medicaoAtual.bytesEscritos - medicaoAnterior.bytesEscritos) / intervalo) / 1024;
+                double  taxaEscritaTotal = (static_cast<double>(medicaoAtual.wchar - medicaoAnterior.wchar) / intervalo) / 1024;
 
-            printf(
-            "================================================================================\n"
-            "|                                MEDIÇÃO (Processo %d)                          \n"
-            "================================================================================\n"
-            "| Intervalo de monitoramento: %3.2f segundos                                      |\n"
-            "--------------------------------------------------------------------------------\n"
-            "| CPU                      |            |\n"
-            "-----------------------------------------\n"
-            "| user_time(s)             | %-10.6f |\n"
-            "| system_time(s)           | %-10.6f |\n"
-            "| Uso por core (%%)         |  %-9.5f |\n"
-            "| Uso relativo (%%)         |  %-9.5f |\n"
-            "-----------------------------------------\n"
-            "| Threads / ContextSwitch  |            |\n"
-            "-----------------------------------------\n"
-            "| Threads                  | %-10u |\n"
-            "| voluntary_ctxt_switch    | %-10u |\n"
-            "| nonvoluntary_ctxt_switch | %-10u |\n"
-            "-----------------------------------------\n"
-            "| Memória                  |            |\n"
-            "-----------------------------------------\n"
-            "| VmSize (kB)              | %-10lu |\n"
-            "| VmRSS (kB)               | %-10lu |\n"
-            "| VmSwap (kB)              | %-10lu |\n"
-            "| minor faults             | %-10lu |\n"
-            "| major faults             | %-10lu |\n"
-            "-----------------------------------------\n"
-            "| Syscalls                 |            |\n"
-            "-----------------------------------------\n"
-            "| leituras                 | %-10lu |\n"
-            "| escritas                 | %-10lu |\n"
-            "-----------------------------------------\n"
-            "| Taxas (KiB/s)            |            |\n"
-            "-----------------------------------------\n"
-            "| Leitura disco            | %-10.6f |\n"
-            "| Leitura total (rchar)    | %-10.6f |\n"
-            "| Escrita disco            | %-10.6f |\n"
-            "| Escrita total (wchar)    | %-10.6f |\n"
-            "-----------------------------------------\n"
-            "| Network                  |            |\n"
-            "-----------------------------------------\n"
-            "| Bytes em fila (TX)       | %-10lu  |\n"
-            "| Bytes em fila (RX)       | %-10lu  |\n"
-            "| Conexões ativas          | %-10u  |\n"
-            "=========================================\n"
-            "| Próxima medição em %3.2f segundos...    |\n"
-            "=========================================\n\n\n\n\n",
-            medicaoAtual.PID, intervalo,
-            medicaoAtual.utime, medicaoAtual.stime, usoCPU, usoCPUGlobal,
-            medicaoAtual.threads, medicaoAtual.contextSwitchfree, medicaoAtual.contextSwitchforced,
-            medicaoAtual.vmSize, medicaoAtual.vmRss, medicaoAtual.vmSwap,
-            medicaoAtual.minfault, medicaoAtual.mjrfault,
-            medicaoAtual.syscallLeitura, medicaoAtual.syscallEscrita,
-            taxaleituraDisco, taxaleituraTotal, taxaEscritaDisco, taxaEscritaTotal,
-            medicaoAtual.bytesTxfila, medicaoAtual.bytesRxfila,
-            medicaoAtual.conexoesAtivas,
-            intervalo
-            );
+                resultado.usoCPU = usoCPU;
+                resultado.usoCPUGlobal = usoCPUGlobal;
+                resultado.taxaLeituraDisco = taxaleituraDisco;
+                resultado.taxaLeituraTotal = taxaleituraTotal;
+                resultado.taxaEscritaDisco = taxaEscritaDisco;
+                resultado.taxaEscritaTotal = taxaEscritaTotal;
+                salvarMedicoesCSV(medicaoAtual, resultado);
 
-			}
-			contador++;
-			if (contador == 5) {
-				int escolha;
-				while (true) {
-					std::cout << "Deseja encerrar o monitoramento? (1 -> sim/0 -> não): \n";
-					std::cin >> escolha;
-					bool flagInsert = true;
-					if (std::cin.fail() || escolha > 1) {
-						std::cin.clear();
-						std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-						std::cout << "Entrada inválida. Tente novamente.\n";
-						flagInsert = false;
-					}
-					if (flagInsert) {
-						break;
-					}
-				}
-				if (escolha == 1) {
-					while (true) {
-						std::cout << "Certo, você quer monitorar outro processo ou sair do resource profiler? (1 -> sair/0 -> outro processo): \n";
-						std::cin >> escolha;
-						bool flagInsert = true;
-						if (std::cin.fail() || escolha > 1) {
-							std::cin.clear();
-							std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-							std::cout << "Entrada inválida. Tente novamente. \n";
-							flagInsert = false;
-						}
-						if (flagInsert) {
-							break;
-						}
-					}
-					if (escolha == 0) {
-						goto entrada;
-					}
-					else {
-						break;
-					}
-				}
-				else {
-					std::cout << "O processo de PID: " << medicaoAtual.PID << " será monitorado por mais 5 ciclos... \n";
-					contador = 0;
-				}
-			}
-			medicaoAnterior = medicaoAtual;
-			std::this_thread::sleep_for(std::chrono::duration<double>(intervalo));
-		}
-	}
+                printf(
+                    "================================================================================\n"
+                    "|                                MEDIÇÃO (Processo %d)                          \n"
+                    "================================================================================\n"
+                    "| Intervalo de monitoramento: %3.2f segundos                                      |\n"
+                    "--------------------------------------------------------------------------------\n"
+                    "| CPU                      |            |\n"
+                    "-----------------------------------------\n"
+                    "| user_time(s)             | %-10.6f |\n"
+                    "| system_time(s)           | %-10.6f |\n"
+                    "| Uso por core (%%)         |  %-9.5f |\n"
+                    "| Uso relativo (%%)         |  %-9.5f |\n"
+                    "-----------------------------------------\n"
+                    "| Threads / ContextSwitch  |            |\n"
+                    "-----------------------------------------\n"
+                    "| Threads                  | %-10u |\n"
+                    "| voluntary_ctxt_switch    | %-10u |\n"
+                    "| nonvoluntary_ctxt_switch | %-10u |\n"
+                    "-----------------------------------------\n"
+                    "| Memória                  |            |\n"
+                    "-----------------------------------------\n"
+                    "| VmSize (kB)              | %-10lu |\n"
+                    "| VmRSS (kB)               | %-10lu |\n"
+                    "| VmSwap (kB)              | %-10lu |\n"
+                    "| minor faults             | %-10lu |\n"
+                    "| major faults             | %-10lu |\n"
+                    "-----------------------------------------\n"
+                    "| Syscalls                 |            |\n"
+                    "-----------------------------------------\n"
+                    "| leituras                 | %-10lu |\n"
+                    "| escritas                 | %-10lu |\n"
+                    "-----------------------------------------\n"
+                    "| Taxas (KiB/s)            |            |\n"
+                    "-----------------------------------------\n"
+                    "| Leitura disco            | %-10.6f |\n"
+                    "| Leitura total (rchar)    | %-10.6f |\n"
+                    "| Escrita disco            | %-10.6f |\n"
+                    "| Escrita total (wchar)    | %-10.6f |\n"
+                    "-----------------------------------------\n"
+                    "| Network                  |            |\n"
+                    "-----------------------------------------\n"
+                    "| Bytes em fila (TX)       | %-10lu  |\n"
+                    "| Bytes em fila (RX)       | %-10lu  |\n"
+                    "| Conexões ativas          | %-10u  |\n"
+                    "=========================================\n"
+                    "| Próxima medição em %3.2f segundos...    |\n"
+                    "=========================================\n\n\n\n\n",
+                    medicaoAtual.PID, intervalo,
+                    medicaoAtual.utime, medicaoAtual.stime, usoCPU, usoCPUGlobal,
+                    medicaoAtual.threads, medicaoAtual.contextSwitchfree, medicaoAtual.contextSwitchforced,
+                    medicaoAtual.vmSize, medicaoAtual.vmRss, medicaoAtual.vmSwap,
+                    medicaoAtual.minfault, medicaoAtual.mjrfault,
+                    medicaoAtual.syscallLeitura, medicaoAtual.syscallEscrita,
+                    taxaleituraDisco, taxaleituraTotal, taxaEscritaDisco, taxaEscritaTotal,
+                    medicaoAtual.bytesTxfila, medicaoAtual.bytesRxfila,
+                    medicaoAtual.conexoesAtivas,
+                    intervalo
+                );
+
+            }
+            contador++;
+            if (contador == 5) {
+                int escolha;
+                while (true) {
+                    std::cout << "Deseja encerrar o monitoramento? (1 -> sim/0 -> não): \n";
+                    std::cin >> escolha;
+                    bool flagInsert = true;
+                    if (std::cin.fail() || escolha > 1) {
+                        std::cin.clear();
+                        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                        std::cout << "Entrada inválida. Tente novamente.\n";
+                        flagInsert = false;
+                    }
+                    if (flagInsert) {
+                        break;
+                    }
+                }
+                if (escolha == 1) {
+                    while (true) {
+                        std::cout << "Certo, você quer monitorar outro processo ou sair do resource profiler? (1 -> sair/0 -> outro processo): \n";
+                        std::cin >> escolha;
+                        bool flagInsert = true;
+                        if (std::cin.fail() || escolha > 1) {
+                            std::cin.clear();
+                            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                            std::cout << "Entrada inválida. Tente novamente. \n";
+                            flagInsert = false;
+                        }
+                        if (flagInsert) {
+                            break;
+                        }
+                    }
+                    if (escolha == 0) {
+                        goto entrada;
+                    }
+                    else {
+                        break;
+                    }
+                }
+                else {
+                    std::cout << "O processo de PID: " << medicaoAtual.PID << " será monitorado por mais 5 ciclos... \n";
+                    contador = 0;
+                }
+            }
+            medicaoAnterior = medicaoAtual;
+            std::this_thread::sleep_for(std::chrono::duration<double>(intervalo));
+        }
+    }
 }
 
 
@@ -473,7 +474,7 @@ entrada:
 // =========================================
 // FUNÇÃO PARA O ANALISADOR DE NAMESPACE
 // =========================================
-void namespaceAnalyzer(){
+void namespaceAnalyzer() {
 	int sub;
 	do {
 		std::cout << "\033[1;36m"; // ciano em negrito
@@ -575,45 +576,45 @@ void namespaceAnalyzer(){
 }
 
 int main() {
-    int opcao;
-    do {
-        std::cout << "\n\033[0;4;31m===================== RESOURCE MONITOR =====================\033[0m\n";
-        std::cout << "\033[1m";
-        std::cout << " 1. Gerenciar Cgroups\n";
-        std::cout << " 2. Analisar Namespaces\n";
-      	std::cout << " 3. Perfilador de Recursos\n";
-        std::cout << " 4. Executar Experimentos\n";  
-        std::cout << " 0. Sair\n";
-        std::cout << " Escolha: ";
-        std::cin >> opcao;
-        std::cout << "\033[0m";
+	int opcao;
+	do {
+		std::cout << "\n\033[0;4;31m===================== RESOURCE MONITOR =====================\033[0m\n";
+		std::cout << "\033[1m";
+		std::cout << " 1. Gerenciar Cgroups\n";
+		std::cout << " 2. Analisar Namespaces\n";
+		std::cout << " 3. Perfilador de Recursos\n";
+		std::cout << " 4. Executar Experimentos\n";
+		std::cout << " 0. Sair\n";
+		std::cout << " Escolha: ";
+		std::cin >> opcao;
+		std::cout << "\033[0m";
 
-        switch (opcao) {
-        case 1:
-            cgroupManager();
-            break;
+		switch (opcao) {
+		case 1:
+			cgroupManager();
+			break;
 
-        case 2:
-            namespaceAnalyzer();
-            break;
-        
-        case 3: {
-				  resourceProfiler();
-				  break;
-			  }
-            
-        case 4: {
-            executarExperimentos();  
-            break;
-        }
-            
-        case 0:
-            std::cout << "Encerrando...\n";
-            break;
+		case 2:
+			namespaceAnalyzer();
+			break;
 
-        default:
-            std::cout << "Opção inválida!\n";
-        }
+		case 3: {
+			resourceProfiler();
+			break;
+		}
 
-    } while (opcao != 0);
+		case 4: {
+			executarExperimentos();
+			break;
+		}
+
+		case 0:
+			std::cout << "Encerrando...\n";
+			break;
+
+		default:
+			std::cout << "Opção inválida!\n";
+		}
+
+	} while (opcao != 0);
 }

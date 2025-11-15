@@ -1,4 +1,4 @@
-﻿#include "cgroup.h"
+﻿﻿#include "cgroup.h"
 #include <fstream>
 #include <filesystem>
 #include <iostream>
@@ -248,7 +248,6 @@ void CGroupManager::runMemoryLimitExperiment() {
     std::cout << "high      = " << high << "\n";
     std::cout << "Máximo de memória alcançada = " << peak / (1024 * 1024) << " MB\n";
 }
-
 
 
 

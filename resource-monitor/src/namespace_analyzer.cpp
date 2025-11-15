@@ -201,7 +201,7 @@ double calcularOverheadMedio(int cloneFlags, const std::string& tipo, int iterac
 // Esta é a função que o novo processo (PID 1) vai rodar
 int child_main(void* /* arg */) {
 	std::cout << "\n\033[1;32m[DENTRO DO FILHO ISOLADO (PID 1)]\033[0m\n";
-	
+
 	bool mount_ok = false;
 	int result_mask = 0; // Bitmask para os resultados
 
@@ -295,7 +295,7 @@ void demonstrarIsolamento() {
 
 	// ... (O cout do PAI continua igual) ...
 	std::cout << "\n\033[1;34m[DE VOLTA AO PAI (NAMESPACE RAIZ)]\033[0m\n";
-	
+
 	// TESTE 1: PID (CONTROLE)
 	std::cout << " > Verificando qual era o PID do filho (visto pelo pai):\n";
 	std::cout << "   - PID do filho era: \033[1m" << pid << "\033[0m\n";
