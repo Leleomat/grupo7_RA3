@@ -1,4 +1,4 @@
-﻿﻿#include "cgroup.h"
+#include "cgroup.h"
 #include <fstream>
 #include <filesystem>
 #include <iostream>
