@@ -14,8 +14,6 @@
 #include <set>
 #include <unistd.h>
 #include <iomanip>
-#include <cmath>
-#include <sys/wait.h>
 
 namespace fs = std::filesystem;
 
@@ -31,19 +29,21 @@ bool processoExiste(int PID) {
 
 void salvarMedicoesCSV(const StatusProcesso& medicao, const calculoMedicao& calculado)
 {
-
-    //const std::string path = "docs/dados" + std::to_string(medicao.PID) +".csv";
-
+    // Obtém o diretório atual do programa
     std::filesystem::path base = std::filesystem::current_path();
-    base = base.parent_path().parent_path().parent_path();
+    // Sobe 1 nível na hierarquia de pastas
+    base = base.parent_path();
+    // Constrói o path completo para o arquivo CSV: [base]/docs/dados[PID].csv
     std::filesystem::path path = base / "docs" / ("dados" + std::to_string(medicao.PID) + ".csv");
 
-
+    // Verifica se o arquivo é novo (não existe ou está vazio)
     bool novo = !std::filesystem::exists(path) || std::filesystem::file_size(path) == 0;
 
+    // Abre o arquivo em modo append (adiciona no final)
     std::ofstream f(path, std::ios::app);
-    if (!f) return;
+    if (!f) return; // Sai se não conseguiu abrir o arquivo
 
+    // Se o arquivo é novo, escreve o cabeçalho CSV
     if (novo) {
         f << "timestamp,PID,utime,stime,threads,contextSwitchfree,contextSwitchforced,"
             "vmSize_kB,vmRss_kB,vmSwap_kB,minfault,mjrfault,bytesLidos,bytesEscritos,"
@@ -52,38 +52,39 @@ void salvarMedicoesCSV(const StatusProcesso& medicao, const calculoMedicao& calc
             "taxaEscritaDisco_KiB_s,taxaEscritaTotal_KiB_s\n";
     }
 
-    // timestamp UTC
-    std::time_t t = std::time(nullptr);
+    // Obtém timestamp UTC atual
+    std::time_t t = std::time(nullptr); // tempo atual em segundos desde epoch
     std::tm tm;
-    gmtime_r(&t, &tm);
+    gmtime_r(&t, &tm); // converte para UTC
     char ts[32];
-    std::strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &tm);
+    std::strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &tm); // formata em ISO 8601
 
-    f << ts << ","
-        << medicao.PID << ","
-        << medicao.utime << ","
-        << medicao.stime << ","
-        << medicao.threads << ","
-        << medicao.contextSwitchfree << ","
-        << medicao.contextSwitchforced << ","
-        << medicao.vmSize << ","
-        << medicao.vmRss << ","
-        << medicao.vmSwap << ","
-        << medicao.minfault << ","
-        << medicao.mjrfault << ","
-        << medicao.bytesLidos << ","
-        << medicao.bytesEscritos << ","
-        << medicao.rchar << ","
-        << medicao.wchar << ","
-        << medicao.syscallLeitura << ","
-        << medicao.syscallEscrita << ","
-        << calculado.usoCPU << ","
-        << calculado.usoCPUGlobal << ","
-        << calculado.taxaLeituraDisco << ","
-        << calculado.taxaLeituraTotal << ","
-        << calculado.taxaEscritaDisco << ","
-        << calculado.taxaEscritaTotal
-        << "\n";
+    // Escreve uma linha no CSV com os dados do processo e métricas calculadas
+    f << ts << ","                            // timestamp
+        << medicao.PID << ","                 // PID do processo
+        << medicao.utime << ","               // tempo CPU usuário (s)
+        << medicao.stime << ","               // tempo CPU kernel (s)
+        << medicao.threads << ","             // número de threads
+        << medicao.contextSwitchfree << ","   // context switches voluntários
+        << medicao.contextSwitchforced << "," // context switches forçados
+        << medicao.vmSize << ","               // tamanho virtual (kB)
+        << medicao.vmRss << ","                // memória residente (kB)
+        << medicao.vmSwap << ","               // swap usado (kB)
+        << medicao.minfault << ","             // page faults menores
+        << medicao.mjrfault << ","             // page faults maiores
+        << medicao.bytesLidos << ","           // bytes lidos do disco
+        << medicao.bytesEscritos << ","        // bytes escritos no disco
+        << medicao.rchar << ","                // bytes lidos via syscall read
+        << medicao.wchar << ","                // bytes escritos via syscall write
+        << medicao.syscallLeitura << ","       // número de syscalls read
+        << medicao.syscallEscrita << ","       // número de syscalls write
+        << calculado.usoCPU << ","             // CPU % do processo
+        << calculado.usoCPUGlobal << ","       // CPU % global
+        << calculado.taxaLeituraDisco << ","   // taxa leitura disco (KiB/s)
+        << calculado.taxaLeituraTotal << ","   // taxa leitura total (KiB/s)
+        << calculado.taxaEscritaDisco << ","   // taxa escrita disco (KiB/s)
+        << calculado.taxaEscritaTotal          // taxa escrita total (KiB/s)
+        << "\n";                               // fim de linha
 }
 
 std::vector<ProcessInfo> listarProcessos() {
@@ -149,49 +150,49 @@ int escolherPID() {
 }
 
 void executarExperimentos() {
-    CGroupManager manager;
+	CGroupManager manager;
 
-    int sub = -1;
-    do {
-        std::cout << "\n\033[1;36m======================= EXPERIMENTOS =======================\033[0m\n";
-        std::cout << "\n\033[1;33m========================== CGROUP ==========================\033[0m\n";
-        std::cout << "\033[1m"; // deixa opções em negrito
-        std::cout << " 1. Experimento nº3 – Throttling de CPU\n";
-        std::cout << " 2. Experimento nº4 – Limite de Memória\n";
-        std::cout << "\033[0m";
-        std::cout << "\n\033[1;33m======================== NAMESPACE =========================\033[0m\n";
-        std::cout << "\033[1m"; // deixa opções em negrito
-        std::cout << " 3. Experimento nº2 - Isolamento via Namespaces\n";
-        std::cout << "\033[0m";
-        std::cout << "\n\033[1;33m======================== PROFILER ==========================\033[0m\n";
-        std::cout << "\033[1m"; // deixa opções em negrito
-        std::cout << " 4. Experimento nº1 - Overhead de Monitoramento\n";
-        std::cout << " 5. Experimento nº5 - Limitação de I/O\n\n";
-        std::cout << " 0. Voltar ao menu principal.\n";
-        std::cout << " Escolha: ";
-        std::cout << "\033[0m";
-        std::cin >> sub;
+	int sub = -1;
+	do {
+		std::cout << "\n\033[1;36m======================= EXPERIMENTOS =======================\033[0m\n";
+		std::cout << "\n\033[1;33m========================== CGROUP ==========================\033[0m\n";
+		std::cout << "\033[1m"; // deixa opções em negrito
+		std::cout << " 1. Experimento nº3 – Throttling de CPU\n";
+		std::cout << " 2. Experimento nº4 – Limite de Memória\n";
+		std::cout << "\033[0m";
+		std::cout << "\n\033[1;33m======================== NAMESPACE =========================\033[0m\n";
+		std::cout << "\033[1m"; // deixa opções em negrito
+		std::cout << " 3. Experimento nº2 - Isolamento via Namespaces\n";
+		std::cout << "\033[0m";
+		std::cout << "\n\033[1;33m======================== PROFILER ==========================\033[0m\n";
+		std::cout << "\033[1m"; // deixa opções em negrito
+		std::cout << " 4. Experimento nº1 - Overhead de Monitoramento\n";
+		std::cout << " 5. Experimento nº5 - Limitação de I/O\n\n";
+		std::cout << " 0. Voltar ao menu principal.\n";
+		std::cout << " Escolha: ";
+		std::cout << "\033[0m";
+		std::cin >> sub;
 
-        if (sub == 1) {
-            manager.runCpuThrottlingExperiment();
-        }
-        else if (sub == 2) {
-            manager.runMemoryLimitExperiment();
-        }
+		if (sub == 1) {
+			manager.runCpuThrottlingExperiment();
+		}
+		else if (sub == 2) {
+			manager.runMemoryLimitExperiment();
+		}
 		else if (sub == 3) {
 			executarExperimentoIsolamento();
 		}
 		else if (sub == 4) {
-			overheadMonitoramento();
-		}
-		else if (sub == 5) {
 			std::cout << "OPÇÃO AINDA NÃO IMPLEMENTADA.\n";
 		}
-        else if (sub != 0) {
-            std::cout << "Opção inválida.\n";
-        }
+		else if (sub == 5) {
+			limitacaoIO();
+		}
+		else if (sub != 0) {
+			std::cout << "Opção inválida.\n";
+		}
 
-    } while (sub != 0);
+	} while (sub != 0);
 }
 
 // Função que faz o gerenciado do cgroup no main
@@ -341,48 +342,57 @@ void cgroupManager() {
 // FUNÇÃO PARA O Perfilador de Recursos
 // =========================================
 void resourceProfiler() {
-entrada:
-    int PID = escolherPID();
-    double intervalo;
+entrada: // label usado para reiniciar o monitor caso haja erro de coleta
+    int PID = escolherPID(); // chama função que retorna PID do processo a ser monitorado
+    double intervalo; // intervalo de coleta em segundos
 
-    std::cout << "\033[1;36m"; // ciano em negrito
+    // Impressão do cabeçalho estilizado do Resource Profiler
+    std::cout << "\033[1;36m"; // muda cor para ciano em negrito
     std::cout << "\n============================================================\n";
     std::cout << "                       Resource Profiler                     \n";
     std::cout << "============================================================\n";
-    std::cout << "\033[0m"; // reseta as cores pro resto do texto
+    std::cout << "\033[0m"; // reseta cores para o restante do texto
 
-
+    // Solicita ao usuário o intervalo de monitoramento
     while (true) {
         std::cout << "\nInsira o intervalo de monitoramento, em segundos: ";
         std::cin >> intervalo;
         bool flagInsert = true;
 
+        // Verifica se a entrada foi válida
         if (std::cin.fail()) {
-            std::cin.clear();
-            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            std::cin.clear(); // limpa estado de erro do cin
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // descarta entrada inválida
             std::cout << "Entrada inválida. Tente novamente.\n";
             flagInsert = false;
         }
         if (flagInsert) {
-            break;
+            break; // sai do loop se a entrada foi válida
         }
     }
+
+    // Inicializa structs para armazenar medições
     StatusProcesso medicaoAnterior;
     StatusProcesso medicaoAtual;
-    medicaoAtual.PID = PID;
-    bool flagMedicao = true;
-    int contador = 0;
+    medicaoAtual.PID = PID; // atribui PID atual
+    bool flagMedicao = true; // flag para primeira medição
+    int contador = 0; // contador de ciclos de medição
 
+    // Loop principal de monitoramento
     while (true) {
 
+        // Coleta dados de CPU, memória, I/O e rede
         if (!(coletorCPU(medicaoAtual) && coletorMemoria(medicaoAtual) && coletorIO(medicaoAtual) && coletorNetwork(medicaoAtual))) {
+            // Se falhar na coleta, reinicia a entrada
             std::cout << "\nFalha ao acessar dados do processo\n";
             std::cout << "Reiniciando...\n";
             goto entrada;
         }
         else {
-            //criação e atualização CSV
+            // Criação e atualização do CSV
             calculoMedicao resultado;
+
+            // Se for a primeira medição, inicializa métricas com zero
             if (flagMedicao) {
                 resultado.usoCPU = 0;
                 resultado.usoCPUGlobal = 0;
@@ -390,37 +400,40 @@ entrada:
                 resultado.taxaLeituraTotal = 0;
                 resultado.taxaEscritaDisco = 0;
                 resultado.taxaEscritaTotal = 0;
-                salvarMedicoesCSV(medicaoAtual, resultado);
+                salvarMedicoesCSV(medicaoAtual, resultado); // salva primeira linha
             }
 
             if (flagMedicao) {
                 std::cout << "Primeira medição detectada... \n";
                 std::cout << "Dados e métricas serão mostrados a partir da segunda medição, por favor espere " << intervalo << " segundos... \n";
-                flagMedicao = false;
+                flagMedicao = false; // desativa flag de primeira medição
             }
             else {
-
-                //Calculo das métricas de CPU
+                // Calcula métricas de CPU
                 double tempoCPUAtual = medicaoAtual.utime + medicaoAtual.stime;
                 double tempoCPUAnterior = medicaoAnterior.utime + medicaoAnterior.stime;
-                double deltaCPU = tempoCPUAtual - tempoCPUAnterior;
-                double usoCPU = (deltaCPU / intervalo) * 100;
-                double usoCPUGlobal = usoCPU / (static_cast<double>(sysconf(_SC_NPROCESSORS_ONLN)));
+                double deltaCPU = tempoCPUAtual - tempoCPUAnterior; // tempo CPU decorrido
+                double usoCPU = (deltaCPU / intervalo) * 100; // uso percentual do processo
+                double usoCPUGlobal = usoCPU / (static_cast<double>(sysconf(_SC_NPROCESSORS_ONLN))); // uso relativo por core
 
-                //Cálculo das métricas de I/O (em KB)
+                // Calcula métricas de I/O em KiB/s
                 double taxaleituraDisco = (static_cast<double>(medicaoAtual.bytesLidos - medicaoAnterior.bytesLidos) / intervalo) / 1024;
                 double taxaleituraTotal = (static_cast<double>(medicaoAtual.rchar - medicaoAnterior.rchar) / intervalo) / 1024;
                 double taxaEscritaDisco = (static_cast<double>(medicaoAtual.bytesEscritos - medicaoAnterior.bytesEscritos) / intervalo) / 1024;
-                double  taxaEscritaTotal = (static_cast<double>(medicaoAtual.wchar - medicaoAnterior.wchar) / intervalo) / 1024;
+                double taxaEscritaTotal = (static_cast<double>(medicaoAtual.wchar - medicaoAnterior.wchar) / intervalo) / 1024;
 
+                // Armazena resultados no struct
                 resultado.usoCPU = usoCPU;
                 resultado.usoCPUGlobal = usoCPUGlobal;
                 resultado.taxaLeituraDisco = taxaleituraDisco;
                 resultado.taxaLeituraTotal = taxaleituraTotal;
                 resultado.taxaEscritaDisco = taxaEscritaDisco;
                 resultado.taxaEscritaTotal = taxaEscritaTotal;
+
+                // Salva no CSV
                 salvarMedicoesCSV(medicaoAtual, resultado);
 
+                // Imprime tabela detalhada com as métricas coletadas
                 printf(
                     "================================================================================\n"
                     "|                                MEDIÇÃO (Processo %d)                          \n"
@@ -481,7 +494,11 @@ entrada:
                 );
 
             }
+
+            // Incrementa contador de ciclos
             contador++;
+
+            // A cada 5 ciclos, pergunta ao usuário se deseja encerrar
             if (contador == 5) {
                 int escolha;
                 while (true) {
@@ -495,9 +512,11 @@ entrada:
                         flagInsert = false;
                     }
                     if (flagInsert) {
-                        break;
+                        break; // sai se entrada válida
                     }
                 }
+
+                // Se usuário quiser encerrar
                 if (escolha == 1) {
                     while (true) {
                         std::cout << "Certo, você quer monitorar outro processo ou sair do resource profiler? (1 -> sair/0 -> outro processo): \n";
@@ -513,31 +532,33 @@ entrada:
                             break;
                         }
                     }
+
                     if (escolha == 0) {
-                        goto entrada;
+                        goto entrada; // reinicia monitoramento para outro PID
                     }
                     else {
-                        break;
+                        break; // sai do loop principal
                     }
                 }
                 else {
                     std::cout << "O processo de PID: " << medicaoAtual.PID << " será monitorado por mais 5 ciclos... \n";
-                    contador = 0;
+                    contador = 0; // reseta contador
                 }
             }
+
+            // Atualiza medição anterior para calcular deltas no próximo ciclo
             medicaoAnterior = medicaoAtual;
+            // Aguarda intervalo definido antes da próxima coleta
             std::this_thread::sleep_for(std::chrono::duration<double>(intervalo));
         }
     }
 }
 
-// =========================================
-// FUNÇÃO PARA O ANALISADOR DE NAMESPACE
-// =========================================
+// Define a função 'namespaceAnalyzer', que atuará como um sub-menu para todas as operações de namespace.
 void namespaceAnalyzer() {
-	int sub;
-	do {
-		std::cout << "\033[1;36m"; // ciano em negrito
+	int sub; // Variável para armazenar a escolha do sub-menu.
+	do { // Inicia um loop 'do-while' que continuará até que o usuário escolha '0' (Voltar).
+		std::cout << "\033[1;36m"; // Define a cor do texto para ciano em negrito (código ANSI).
 		std::cout << "\n============================================================\n";
 		std::cout << "                       Namespace Analyzer                    \n";
 		std::cout << "============================================================\n";
@@ -550,131 +571,147 @@ void namespaceAnalyzer() {
 		std::cout << " 0. Voltar ao menu inicial\n";
 		std::cout << "------------------------------------------------------------\n";
 		std::cout << "Escolha: ";
-		std::cout << "\033[0m"; // reseta as cores pro resto do texto
-		std::cin >> sub;
+		std::cout << "\033[0m"; // Reseta as cores para a entrada do usuário.
+		std::cin >> sub; // Lê a escolha do usuário e armazena em 'sub'.
 
-		if (sub == 1) {
+		if (sub == 1) { // Se o usuário escolheu '1'
+			// A função 'escolherPID' mostra uma lista de processos e retorna o PID escolhido pelo usuário
 			int pid = escolherPID();
-			listNamespaces(pid);
+			listNamespaces(pid); // Chama a função para listar os namespaces do PID escolhido.
 		}
 
-		else if (sub == 2) {
+		else if (sub == 2) { // Se o usuário escolheu '2'
+			// A função 'listarProcessos' retorna um vetor ou lista de processos e seus nomes
 			auto processos = listarProcessos();
 
+			// Imprime um cabeçalho para a lista de processos
 			std::cout << "\n\033[1;33m=================== Processos disponiveis ==================\033[0m\n";
+			// Itera sobre a lista de processos e imprime o PID e o nome de cada um.
 			for (const auto& p : processos) {
 				std::cout << "PID: " << std::left << std::setw(25) << p.pid << "\tNome: " << p.name << "\n";
 			}
 
-			int pid1, pid2;
+			int pid1, pid2; // Variáveis para armazenar os dois PIDs a comparar.
 			std::cout << "\nDigite os dois PIDs separados por espaço: ";
-			std::cin >> pid1 >> pid2;
-			compareNamespaces(pid1, pid2);
+			std::cin >> pid1 >> pid2; // Lê os dois PIDs.
+			compareNamespaces(pid1, pid2); // Chama a função de comparação.
 		}
 
-		else if (sub == 3) {
+		else if (sub == 3) { // Se o usuário escolheu '3'
 			std::cout << "\n\033[1;33m============== Tipos de Namespaces disponiveis =============\033[0m\n";
+			// Define um vetor com os tipos de namespace conhecidos.
 			std::vector<std::string> tipos = { "ipc", "mnt", "net", "pid", "user", "uts", "cgroup" };
+			// Itera sobre o vetor e imprime cada tipo.
 			for (const auto& t : tipos)
 				std::cout << "- " << t << "\n";
 
-			std::string tipo;
+			std::string tipo; // Variável para armazenar o tipo escolhido.
 			std::cout << "\nDigite o tipo de namespace (ex: net): ";
-			std::cin >> tipo;
+			std::cin >> tipo; // Lê o tipo.
 
 			std::cout << "\n Buscando namespaces do tipo '" << tipo << "'...\n";
 
-			// Listar valores únicos disponíveis para o tipo
+			// Esta seção serve para ajudar o usuário, mostrando IDs de namespace válidos.
+			// Cria um 'set' para armazenar os IDs únicos encontrados.
 			std::set<std::string> idsDisponiveis;
+			// Itera por todos os diretórios em /proc
 			for (const auto& entry : std::filesystem::directory_iterator("/proc")) {
-				std::string pidStr = entry.path().filename();
+				std::string pidStr = entry.path().filename(); // Pega o nome do diretório
+				// Verifica se o nome é composto apenas por dígitos (é um PID)
 				if (!std::all_of(pidStr.begin(), pidStr.end(), ::isdigit)) continue;
 
+				// Constrói o caminho para o arquivo de namespace (ex: /proc/123/ns/net)
 				std::string nsPath = "/proc/" + pidStr + "/ns/" + tipo;
-				char buf[256];
+				char buf[256]; // Buffer para ler o link simbólico.
+				// Tenta ler o link simbólico que representa o ID do namespace.
 				ssize_t len = readlink(nsPath.c_str(), buf, sizeof(buf) - 1);
-				if (len != -1) {
-					buf[len] = '\0';
-					idsDisponiveis.insert(std::string(buf));
+				if (len != -1) { // Se a leitura for bem-sucedida
+					buf[len] = '\0'; // Adiciona o terminador nulo
+					idsDisponiveis.insert(std::string(buf)); // Insere o ID no 'set' (ignora duplicatas).
 				}
 			}
 
-			if (idsDisponiveis.empty()) {
+			if (idsDisponiveis.empty()) { // Se nenhum namespace desse tipo foi encontrado
 				std::cout << "Nenhum namespace desse tipo foi encontrado.\n";
-				continue;
+				continue; // Volta ao início do loop do menu.
 			}
 
+			// Imprime os IDs de namespace que foram encontrados
 			std::cout << "\n\033[1;33m=============== Namespaces disponiveis (" << tipo << ") ==============\033[0m\n";
-			int count = 0;
+			int count = 0; // Contador para limitar a saída
 			for (const auto& id : idsDisponiveis) {
-				std::cout << " " << ++count << ". " << id << "\n";
-				if (count >= 10) {
+				std::cout << " " << ++count << ". " << id << "\n"; // Imprime o ID
+				if (count >= 10) { // Limita a 10 para não poluir a tela
 					std::cout << "... (mostrando apenas os 10 primeiros)\n";
-					break;
+					break; // Sai do loop de impressão
 				}
 			}
 
-			std::string idEscolhido;
+			std::string idEscolhido; // Variável para o ID alvo.
+			// Pede ao usuário o número (ex: 4026531993), não o ID formatado (ex: net:[...]).
 			std::cout << "\nDigite o valor exato do namespace (ex: 4026531993): ";
-			std::cin >> idEscolhido;
+			std::cin >> idEscolhido; // Lê o ID.
+			// Chama a função de busca com o tipo e o ID.
 			findProcessesInNamespace(tipo, idEscolhido);
 		}
 
-		else if (sub == 4) {
-			gerarRelatorioGeralCompleto();
+		else if (sub == 4) { // Se o usuário escolheu '4'
+			gerarRelatorioGeralCompleto(); // Chama a função que gera o relatório completo.
 		}
 
-		else if (sub == 0) {
-			std::cout << "Voltando ao menu principal...\n";
+		else if (sub == 0) { // Se o usuário escolheu '0'
+			std::cout << "Voltando ao menu principal...\n"; // Imprime mensagem de saída.
 		}
 
-		else {
-			std::cout << "Opção inválida!\n";
+		else { // Se a escolha não foi 0, 1, 2, 3 ou 4
+			std::cout << "Opção inválida!\n"; // Informa o usuário.
 		}
 
-	} while (sub != 0);
+	} while (sub != 0); // O loop continua enquanto 'sub' for diferente de 0.
 }
 
+// Esta é a função principal, o ponto de entrada do programa.
 int main() {
-	int opcao;
-	do {
+	int opcao; // Variável para armazenar a escolha do menu principal.
+	do { // Inicia o loop do menu principal.
+		// Imprime o cabeçalho do menu (com código ANSI para sublinhado e vermelho).
 		std::cout << "\n\033[0;4;31m===================== RESOURCE MONITOR =====================\033[0m\n";
-		std::cout << "\033[1m";
+		std::cout << "\033[1m"; // Deixa as opções em negrito.
 		std::cout << " 1. Gerenciar Cgroups\n";
 		std::cout << " 2. Analisar Namespaces\n";
 		std::cout << " 3. Perfilador de Recursos\n";
 		std::cout << " 4. Executar Experimentos\n";
 		std::cout << " 0. Sair\n";
 		std::cout << " Escolha: ";
-		std::cin >> opcao;
-		std::cout << "\033[0m";
+		std::cin >> opcao; // Lê a escolha do usuário.
+		std::cout << "\033[0m"; // Reseta as cores.
 
 		switch (opcao) {
-		case 1:
-			cgroupManager();
-			break;
+		case 1: // Se 'opcao' for 1
+			cgroupManager(); // Chama a função do gerenciador de Cgroups.
+			break; // Sai do 'switch'.
 
-		case 2:
-			namespaceAnalyzer();
-			break;
+		case 2: // Se 'opcao' for 2
+			namespaceAnalyzer(); // Chama a função do analisador de Namespaces.
+			break; // Sai do 'switch'.
 
-		case 3: {
-			resourceProfiler();
-			break;
+		case 3: { // Se 'opcao' for 3
+			resourceProfiler(); // Chama a função do perfilador de recursos.
+			break; // Sai do 'switch'.
 		}
 
-		case 4: {
-			executarExperimentos();
-			break;
+		case 4: { // Se 'opcao' for 4
+			executarExperimentos(); // Chama a função que executa os experimentos.
+			break; // Sai do 'switch'.
 		}
 
-		case 0:
-			std::cout << "Encerrando...\n";
-			break;
+		case 0: // Se 'opcao' for 0
+			std::cout << "Encerrando...\n"; // Imprime mensagem de saída.
+			break; // Sai do 'switch'.
 
-		default:
-			std::cout << "Opção inválida!\n";
+		default: // Se 'opcao' não for nenhuma das anteriores
+			std::cout << "Opção inválida!\n"; // Informa o usuário.
 		}
 
-	} while (opcao != 0);
+	} while (opcao != 0); // O loop continua enquanto 'opcao' for diferente de 0.
 }
