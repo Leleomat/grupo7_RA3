@@ -49,3 +49,7 @@ bool coletorMemoria(StatusProcesso &medicao);
 bool coletorIO(StatusProcesso &medicao);
 
 bool coletorNetwork(StatusProcesso &medicao);
+
+void overheadMonitoramento();
+
+void cargaExecutar();

@@ -14,6 +14,8 @@
 #include <set>
 #include <unistd.h>
 #include <iomanip>
+#include <cmath>
+#include <sys/wait.h>
 
 namespace fs = std::filesystem;
 
@@ -180,7 +182,7 @@ void executarExperimentos() {
 			executarExperimentoIsolamento();
 		}
 		else if (sub == 4) {
-			std::cout << "OPÇÃO AINDA NÃO IMPLEMENTADA.\n";
+			overheadMonitoramento();
 		}
 		else if (sub == 5) {
 			std::cout << "OPÇÃO AINDA NÃO IMPLEMENTADA.\n";

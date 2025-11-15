@@ -57,64 +57,6 @@ bool coletorIO(StatusProcesso &medicao) {
     return true;
 }
 
-
-// bool coletorNetwork(StatusProcesso &medicao) {
-//     int PID = medicao.PID;
-
-//     if (!processoExiste(PID)) {
-//         std::cerr << "Erro: processo " << PID << " inexistente.\n";
-//         return false;
-//     }
-
-//     if (!temPermissao(PID)) {
-//         std::cerr << "Erro: sem permissão para acessar processo " << PID << ".\n";
-//         return false;
-//     }
-
-//     std::string caminhoFdProcesso = "/proc/" + std::to_string(PID) + "/fd";
-//     if (!std::filesystem::exists(caminhoFdProcesso)) {
-//         std::cerr << "Erro: fd do processo não existe.\n";
-//         return false;
-//     }
-
-//     // Contagem de sockets ativos
-//     medicao.conexoesAtivas = 0;
-//     for (auto &entradaFd : std::filesystem::directory_iterator(caminhoFdProcesso)) {
-//         std::string linkDescricaoFd;
-//         try {
-//             linkDescricaoFd = std::filesystem::read_symlink(entradaFd.path());
-//         } catch (...) {
-//             continue;
-//         }
-//         if (linkDescricaoFd.find("socket:[") != std::string::npos) {
-//             medicao.conexoesAtivas++;
-//         }
-//     }
-
-//     // Leitura de bytes lidos/escritos (rchar/wchar)
-//     std::string pathIo = "/proc/" + std::to_string(PID) + "/io";
-//     std::ifstream ioStream(pathIo);
-//     if (!ioStream.is_open()) {
-//         std::cerr << "Erro: não foi possível abrir " << pathIo << "\n";
-//         return false;
-//     }
-
-//     std::string linha;
-//     while (std::getline(ioStream, linha)) {
-//         if (linha.rfind("rchar:", 0) == 0)
-//             sscanf(linha.c_str(), "rchar: %lu", &medicao.bytesRx);
-//         else if (linha.rfind("wchar:", 0) == 0)
-//             sscanf(linha.c_str(), "wchar: %lu", &medicao.bytesTx);
-//     }
-
-//     // Estimativa de pacotes
-//     medicao.pacotesRecebidos = medicao.bytesRx / 1500;
-//     medicao.pacotesEnviados = medicao.bytesTx / 1500;
-
-//     return true;
-// }
-
-
 bool coletorNetwork(StatusProcesso &status) { // entrada: recebe estrutura onde vai gravar métricas
     const int pid = status.PID; // PID do processo alvo
     const std::string caminhoDiretorioFd = "/proc/" + std::to_string(pid) + "/fd"; // path para os file descriptors do processo
