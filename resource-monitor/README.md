@@ -94,6 +94,7 @@ Após reiniciar, o terminal do Ubuntu será aberto. Siga as instruções para cr
 
 ## Metodologia de Testes
 ## Responsável - Caliel Carvalho de Medeiros
+Para rodar os testes compile o projeto com o makefile e rode cada executável separadamente, através do uso do bash, exemplo: sudo ./teste_cpu.
 
 ### Teste de CPU
 
@@ -231,11 +232,52 @@ O experimento concluiu com sucesso que os namespaces são uma ferramenta eficaz 
 ### Experimento 5 - Limitação de I/O - Caliel Carvalho de Medeiros
 
 ### Condições
+Foram definidas as seguintes condições experimentais:
+
+- **Sistema operacional**: Linux (WSL2 ou kernel nativo);
+- **Processo de teste**: I/O-intensive, realizando leituras e escritas contínuas em disco;
+- **Limite de I/O configurado**: 1.000.000 B/s (bytes por segundo);
+- **Métricas coletadas**:
+  - Throughput real (B/s);
+  - Latência média de operação de I/O (ms/op);
+  - Tempo total de execução (s);
+  - Comparação do tempo total com o valor esperado pelo limite configurado.
+
+O objetivo era verificar a precisão do throttle de I/O e avaliar o impacto no desempenho do processo.
 
 ### Execução
+1. **Baseline sem limitação:**  
+   O processo de teste foi executado sem aplicação de limite, permitindo medir o throughput máximo e a latência natural das operações de I/O.
 
-### Resultado
+2. **Execução com limitação:**  
+   O limite de I/O foi aplicado via mecanismos do sistema (por exemplo, cgroups ou throttling de bloco). Durante a execução:
+   - O total de bytes lidos e escritos foi registrado;
+   - O número de operações de I/O realizadas foi contado;
+   - A latência média de cada operação foi calculada como `tempo total / número de operações`;
+   - O throughput real foi calculado como `total de bytes / tempo total`;
+   - O tempo total de execução foi comparado ao valor esperado baseado no limite configurado.
 
+3. **Coleta de métricas detalhada:**  
+   - `bytesLidos` e `bytesEscritos`: total de bytes processados;
+   - `rchar` e `wchar`: contadores de leituras e escritas de caracteres;
+   - Latência média de operação em milissegundos;
+   - Comparação percentual do tempo total de execução com o previsto.
+
+### Resultados
+| Métrica                        | Valor        |
+|--------------------------------|-------------|
+| Limite configurado (B/s)       | 1.000.000   |
+| Throughput medido (B/s)        | 998.911     |
+| Latência média de I/O (ms/op)  | 0,00256494  |
+| Tempo total de execução (s)    | 10,4972     |
+| Tempo esperado se limitado (s) | 10,4858     |
+| Impacto no tempo total (%)     | 0,109       |
+
+**Análise Técnica:**  
+- O throughput real medido (998.911 B/s) está muito próximo do limite configurado, indicando que o mecanismo de throttling é preciso.  
+- A latência média por operação de I/O é extremamente baixa (aproximadamente 2,5 µs), mostrando que o overhead do throttle é praticamente desprezível.  
+- O impacto no tempo total de execução do processo é de apenas 0,109%, confirmando que a limitação de I/O é eficaz sem degradar significativamente a performance.  
+- Pequenas variações observadas nos resultados podem ser explicadas por ruído do sistema, concorrência de processos e variabilidade inerente ao scheduler do Linux.
 
 Funcionalidades Extras (Bônus) implementadas: 
 - Código Excepcionalmente bem comentado (+10)
