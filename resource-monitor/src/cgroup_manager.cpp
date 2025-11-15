@@ -24,6 +24,13 @@ CGroupManager::CGroupManager(const std::string& path) : basePath(path) {}
 bool CGroupManager::createCGroup(const std::string& name) {
     try {
         fs::create_directory(basePath + name); // Tenta criar o diretório; se já existir, pode lançar ou retornar false
+
+        // Habilita memory para subgrupos
+        std::ofstream subtree(basePath + "cgroup.subtree_control");
+        if (subtree.is_open()) {
+            subtree << "+memory +cpu +io +pids";
+        }
+
         return true; // Caso consiga criar o diretório retorna true
     }
     catch (const std::exception& e) { // Captura exceções do filesystem
@@ -100,34 +107,116 @@ bool CGroupManager::setCpuLimit(const std::string& name, double cores) {
     return true; // Limite aplicado com sucesso.
 }
 
-// define limite de memória escrevendo em memory.max (bytes)
+// Define limite de memória (cgroup v2) escrevendo em memory.max. Recebe como parâmetro o nome do cgroup e a memória em bytes que quer setar
 bool CGroupManager::setMemoryLimit(const std::string& name, size_t bytes) {
-    std::ofstream memMax(basePath + name + "/memory.max"); // abre memory.max
-    if (!memMax.is_open()) return false;                   // falha se não abriu
-    memMax << bytes;                                       // escreve o número de bytes (ex: 100000000)
-    return true;
-}
+    std::string path = basePath + name + "/memory.max"; // Define o caminho do arquivo que seta a memória do cgroup
 
-// lê cpu.stat e devolve um mapa de pares chave->valor (double)
-std::map<std::string, double> CGroupManager::readCpuUsage(const std::string& name) {
-    std::ifstream f(basePath + name + "/cpu.stat");    // abre cpu.stat
-    std::map<std::string, double> stats;               // mapa para guardar os pares
-    std::string key;
-    double val;
-
-    while (f >> key >> val) {                          // lê até EOF pares "key value"
-        stats[key] = val;                              // armazena no mapa (substitui se já existir)
+    // Verifica se o arquivo existe. Caso não exista, mostra ao usuário
+    if (!fs::exists(path)) {
+        std::cerr << "Erro: " << path << " não existe\n";
+        return false;
     }
-    return stats;                                      // retorna mapa (pode estar vazio se arquivo não existir)
+
+    // Abre o arquivo para escrita. Caso não consiga, mostra ao usuário
+    std::ofstream memMax(path); 
+    if (!memMax.is_open()) {
+        std::cerr << "Erro ao abrir " << path << " para escrita.\n";
+        return false;
+    }
+
+    // Valida entrada, evita tamanho 0 e ajusta para 1 se for preciso
+    if (bytes == 0) {
+        std::cerr << "Aviso: bytes = 0 bloquearia toda memória. Ajustando para 1.\n";
+        bytes = 1; // Set de bytes em 1
+    }
+
+    // Escreve o limite no arquivo
+    memMax << bytes; 
+    memMax.flush(); // .flush() garante que os dados sejam escritos no arquivo.
+
+    // Verifica se a escrita falhou. Caso tenha falhado, mostra ao usuário
+    if (!memMax.good()) {
+        std::cerr << "Falha ao escrever em memory.max\n";
+        return false;
+    }
+
+    return true; // Limite aplicado com sucesso.
 }
 
-// lê memory.current (apenas um número) e retorna em um mapa com chave "memory.current"
+// Lê o arquivo cpu.stat e retorna um mapa com métricas (chave -> valor)
+std::map<std::string, double> CGroupManager::readCpuUsage(const std::string& name) {
+    // Monta o caminho completo do arquivo cpu.stat no cgroup
+    const std::string path = basePath + name + "/cpu.stat";
+
+    // Abre o arquivo cpu.stat para leitura
+    std::ifstream f(path);
+
+    // Se não abriu, imprime erro e retorna mapa vazio
+    if (!f.is_open()) {
+        std::cerr << "Erro: não foi possível abrir " << path << "\n";
+        return {}; // Mapa vazio indica falha
+    }
+
+    // Mapa onde serão armazenados os pares "chave valor"
+    std::map<std::string, double> stats;
+
+    // Armazena cada linha lida do arquivo
+    std::string line;
+
+    // Lê o arquivo linha a linha
+    while (std::getline(f, line)) {
+
+        // Ignora linhas vazias ou apenas com espaços
+        if (line.empty()) continue;
+
+        // Transforma a linha em um stream para processar tokens
+        std::istringstream iss(line);
+
+        // Variáveis para armazenar a chave e o valor
+        std::string key;
+        double value;
+
+        // Tenta ler no formato:  key   value
+        if (!(iss >> key >> value)) {
+            // Linha inválida
+            std::cerr << "Aviso: linha mal formatada em cpu.stat: " << line << "\n";
+            continue; // continua lendo as próximas linhas
+        }
+
+        // Salva no mapa: substitui se a chave já existir
+        stats[key] = value;
+    }
+
+    // Retorna o mapa com as métricas lidas
+    return stats;
+}
+
+// Lê o arquivo memory.stat e retorna um mapa com métricas (chave -> valor)
 std::map<std::string, size_t> CGroupManager::readMemoryUsage(const std::string& name) {
-    std::ifstream f(basePath + name + "/memory.current"); // abre memory.current
+    // Monta o caminho completo do arquivo memory.current no cgroup
+    const std::string path = basePath + name + "/memory.current";
+
+    // Abre o arquivo memory.stat para leitura
+    std::ifstream f(path); 
+
+    // Se não abriu, imprime erro e retorna mapa vazio
+    if (!f.is_open()) {
+        std::cerr << "Erro: não foi possível abrir " << path << "\n";
+        return {}; // Mapa vazio indica falha
+    }
+
+    // Mapa onde serão armazenados os pares "chave valor"
     std::map<std::string, size_t> stats;
-    size_t val;
-    if (f >> val)                                         // se conseguiu ler um valor
-        stats["memory.current"] = val;                    // guarda sob a chave "memory.current"
+
+    // Variável que receberá a informação para ser mapeada
+    size_t value = 0; // Inicializa como 0
+
+    // Verifica se há alguma valor em memory.current
+    if (f >> value) {
+        stats["memory.current"] = value;  // Armazena cada métrica com seu devido valor
+    }
+
+    // Retorna a mapa das métricas e valores da memória
     return stats;
 }
 
