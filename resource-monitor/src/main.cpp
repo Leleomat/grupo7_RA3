@@ -1,4 +1,4 @@
-﻿#include "cgroup.h"
+﻿﻿#include "cgroup.h"
 #include "monitor.h"
 #include "namespace.h"
 #include <iostream>
@@ -18,144 +18,144 @@
 namespace fs = std::filesystem;
 
 struct ProcessInfo {
-    int pid;
-    std::string name;
+	int pid;
+	std::string name;
 };
 
 bool processoExiste(int PID) {
-    std::filesystem::path dir = "/proc/" + std::to_string(PID);
-    return std::filesystem::exists(dir) && std::filesystem::is_directory(dir);
+	std::filesystem::path dir = "/proc/" + std::to_string(PID);
+	return std::filesystem::exists(dir) && std::filesystem::is_directory(dir);
 }
 
 void salvarMedicoesCSV(const StatusProcesso& medicao, const calculoMedicao& calculado)
 {
 
-    //const std::string path = "docs/dados" + std::to_string(medicao.PID) +".csv";
+	//const std::string path = "docs/dados" + std::to_string(medicao.PID) +".csv";
 
-    std::filesystem::path base = std::filesystem::current_path();
-    base = base.parent_path().parent_path().parent_path();
-    std::filesystem::path path = base / "docs" / ("dados" + std::to_string(medicao.PID) + ".csv");
+	std::filesystem::path base = std::filesystem::current_path();
+	base = base.parent_path().parent_path().parent_path();
+	std::filesystem::path path = base / "docs" / ("dados" + std::to_string(medicao.PID) + ".csv");
 
 
-    bool novo = !std::filesystem::exists(path) || std::filesystem::file_size(path) == 0;
+	bool novo = !std::filesystem::exists(path) || std::filesystem::file_size(path) == 0;
 
-    std::ofstream f(path, std::ios::app);
-    if (!f) return;
+	std::ofstream f(path, std::ios::app);
+	if (!f) return;
 
-    if (novo) {
-        f << "timestamp,PID,utime,stime,threads,contextSwitchfree,contextSwitchforced,"
-             "vmSize_kB,vmRss_kB,vmSwap_kB,minfault,mjrfault,bytesLidos,bytesEscritos,"
-             "rchar,wchar,syscallLeitura,syscallEscrita,"
-             "usoCPU_pct,usoCPUGlobal_pct,taxaLeituraDisco_KiB_s,taxaLeituraTotal_KiB_s,"
-             "taxaEscritaDisco_KiB_s,taxaEscritaTotal_KiB_s\n";
-    }
+	if (novo) {
+		f << "timestamp,PID,utime,stime,threads,contextSwitchfree,contextSwitchforced,"
+			"vmSize_kB,vmRss_kB,vmSwap_kB,minfault,mjrfault,bytesLidos,bytesEscritos,"
+			"rchar,wchar,syscallLeitura,syscallEscrita,"
+			"usoCPU_pct,usoCPUGlobal_pct,taxaLeituraDisco_KiB_s,taxaLeituraTotal_KiB_s,"
+			"taxaEscritaDisco_KiB_s,taxaEscritaTotal_KiB_s\n";
+	}
 
-    // timestamp UTC
-    std::time_t t = std::time(nullptr);
-    std::tm tm;
-    gmtime_r(&t, &tm);
-    char ts[32];
-    std::strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &tm);
+	// timestamp UTC
+	std::time_t t = std::time(nullptr);
+	std::tm tm;
+	gmtime_r(&t, &tm);
+	char ts[32];
+	std::strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &tm);
 
-    f << ts << ","
-      << medicao.PID << ","
-      << medicao.utime << ","
-      << medicao.stime << ","
-      << medicao.threads << ","
-      << medicao.contextSwitchfree << ","
-      << medicao.contextSwitchforced << ","
-      << medicao.vmSize << ","
-      << medicao.vmRss << ","
-      << medicao.vmSwap << ","
-      << medicao.minfault << ","
-      << medicao.mjrfault << ","
-      << medicao.bytesLidos << ","
-      << medicao.bytesEscritos << ","
-      << medicao.rchar << ","
-      << medicao.wchar << ","
-      << medicao.syscallLeitura << ","
-      << medicao.syscallEscrita << ","
-      << calculado.usoCPU << ","
-      << calculado.usoCPUGlobal << ","
-      << calculado.taxaLeituraDisco << ","
-      << calculado.taxaLeituraTotal << ","
-      << calculado.taxaEscritaDisco << ","
-      << calculado.taxaEscritaTotal
-      << "\n";
+	f << ts << ","
+		<< medicao.PID << ","
+		<< medicao.utime << ","
+		<< medicao.stime << ","
+		<< medicao.threads << ","
+		<< medicao.contextSwitchfree << ","
+		<< medicao.contextSwitchforced << ","
+		<< medicao.vmSize << ","
+		<< medicao.vmRss << ","
+		<< medicao.vmSwap << ","
+		<< medicao.minfault << ","
+		<< medicao.mjrfault << ","
+		<< medicao.bytesLidos << ","
+		<< medicao.bytesEscritos << ","
+		<< medicao.rchar << ","
+		<< medicao.wchar << ","
+		<< medicao.syscallLeitura << ","
+		<< medicao.syscallEscrita << ","
+		<< calculado.usoCPU << ","
+		<< calculado.usoCPUGlobal << ","
+		<< calculado.taxaLeituraDisco << ","
+		<< calculado.taxaLeituraTotal << ","
+		<< calculado.taxaEscritaDisco << ","
+		<< calculado.taxaEscritaTotal
+		<< "\n";
 }
 
 std::vector<ProcessInfo> listarProcessos() {
-    std::vector<ProcessInfo> lista;
+	std::vector<ProcessInfo> lista;
 
-    for (const auto& entry : fs::directory_iterator("/proc")) {
-        if (!entry.is_directory()) continue;
+	for (const auto& entry : fs::directory_iterator("/proc")) {
+		if (!entry.is_directory()) continue;
 
-        const std::string dir = entry.path().filename().string();
-        if (!std::all_of(dir.begin(), dir.end(), ::isdigit)) continue;
+		const std::string dir = entry.path().filename().string();
+		if (!std::all_of(dir.begin(), dir.end(), ::isdigit)) continue;
 
-        int pid = std::stoi(dir);
-        std::ifstream cmdline("/proc/" + dir + "/comm");
-        std::string nome;
-        if (cmdline.good())
-            std::getline(cmdline, nome);
+		int pid = std::stoi(dir);
+		std::ifstream cmdline("/proc/" + dir + "/comm");
+		std::string nome;
+		if (cmdline.good())
+			std::getline(cmdline, nome);
 
-        if (!nome.empty())
-            lista.push_back({ pid, nome });
-    }
-    return lista;
+		if (!nome.empty())
+			lista.push_back({ pid, nome });
+	}
+	return lista;
 }
 
 int escolherPID() {
-    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+	std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
-    auto processos = listarProcessos();
+	auto processos = listarProcessos();
 
-    std::cout << "\n\033[1;33m=================== Processos disponiveis ==================\033[0m\n";
-    for (const auto& p : processos) {
-        std::cout << "PID: " << std::left << std::setw(25) << p.pid << "\tNome: " << p.name << "\n";
-    }
+	std::cout << "\n\033[1;33m=================== Processos disponiveis ==================\033[0m\n";
+	for (const auto& p : processos) {
+		std::cout << "PID: " << std::left << std::setw(25) << p.pid << "\tNome: " << p.name << "\n";
+	}
 
-    int pid;
-    bool valido = false;
+	int pid;
+	bool valido = false;
 
-    do {
-        std::cout << "\nDigite o número do PID escolhido: ";
-        std::cin >> pid;
+	do {
+		std::cout << "\nDigite o número do PID escolhido: ";
+		std::cin >> pid;
 
-        if (std::cin.fail()) {
-            std::cin.clear();
-            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-            std::cout << "Entrada inválida. Tente novamente.\n";
-            continue;
-        }
+		if (std::cin.fail()) {
+			std::cin.clear();
+			std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+			std::cout << "Entrada inválida. Tente novamente.\n";
+			continue;
+		}
 
-        for (const auto& p : processos) {
-            if (p.pid == pid) {
-                if (processoExiste(pid)) {
-                    valido = true;
-                    break;
-                }
-            }
-        }
+		for (const auto& p : processos) {
+			if (p.pid == pid) {
+				if (processoExiste(pid)) {
+					valido = true;
+					break;
+				}
+			}
+		}
 
-        if (!valido)
-            std::cout << "PID não encontrado entre os processos listados.\n";
+		if (!valido)
+			std::cout << "PID não encontrado entre os processos listados.\n";
 
-    } while (!valido);
+	} while (!valido);
 
-    return pid;
+	return pid;
 }
 
 void executarExperimentos() {
-    CGroupManager manager;
+	CGroupManager manager;
 
-    int sub = -1;
-    do {
+	int sub = -1;
+	do {
 		std::cout << "\n\033[1;36m======================= EXPERIMENTOS =======================\033[0m\n";
-        std::cout << "\n\033[1;33m========================== CGROUP ==========================\033[0m\n";
+		std::cout << "\n\033[1;33m========================== CGROUP ==========================\033[0m\n";
 		std::cout << "\033[1m"; // deixa opções em negrito
-        std::cout << " 1. Experimento nº3 – Throttling de CPU\n";
-        std::cout << " 2. Experimento nº4 – Limite de Memória\n";
+		std::cout << " 1. Experimento nº3 – Throttling de CPU\n";
+		std::cout << " 2. Experimento nº4 – Limite de Memória\n";
 		std::cout << "\033[0m";
 		std::cout << "\n\033[1;33m======================== NAMESPACE =========================\033[0m\n";
 		std::cout << "\033[1m"; // deixa opções em negrito
@@ -165,17 +165,17 @@ void executarExperimentos() {
 		std::cout << "\033[1m"; // deixa opções em negrito
 		std::cout << " 4. Experimento nº1 - Overhead de Monitoramento\n";
 		std::cout << " 5. Experimento nº5 - Limitação de I/O\n\n";
-        std::cout << " 0. Voltar ao menu principal.\n";
-        std::cout << " Escolha: ";
+		std::cout << " 0. Voltar ao menu principal.\n";
+		std::cout << " Escolha: ";
 		std::cout << "\033[0m";
-        std::cin >> sub;
+		std::cin >> sub;
 
-        if (sub == 1) {
-            manager.runCpuThrottlingExperiment();
-        }
-        else if (sub == 2) {
-            manager.runMemoryLimitExperiment();
-        }
+		if (sub == 1) {
+			manager.runCpuThrottlingExperiment();
+		}
+		else if (sub == 2) {
+			manager.runMemoryLimitExperiment();
+		}
 		else if (sub == 3) {
 			executarExperimentoIsolamento();
 		}
@@ -185,91 +185,91 @@ void executarExperimentos() {
 		else if (sub == 5) {
 			std::cout << "OPÇÃO AINDA NÃO IMPLEMENTADA.\n";
 		}
-        else if (sub != 0) {
-            std::cout << "Opção inválida.\n";
-        }
+		else if (sub != 0) {
+			std::cout << "Opção inválida.\n";
+		}
 
-    } while (sub != 0);
+	} while (sub != 0);
 }
 
 void cgroupManager() {
-    CGroupManager manager;
+	CGroupManager manager;
 
-    std::cout << "\033[1;36m";
-    std::cout << "\n============================================================\n";
-    std::cout << "                         CGroup Manager                      \n";
-    std::cout << "============================================================\n";
-    std::cout << "\033[0m";
+	std::cout << "\033[1;36m";
+	std::cout << "\n============================================================\n";
+	std::cout << "                         CGroup Manager                      \n";
+	std::cout << "============================================================\n";
+	std::cout << "\033[0m";
 
-    std::string cgroupName = "exp_" + std::to_string(time(nullptr));
-    std::cout << "Nome do cgroup experimental: " << cgroupName << ".\n";
+	std::string cgroupName = "exp_" + std::to_string(time(nullptr));
+	std::cout << "Nome do cgroup experimental: " << cgroupName << ".\n";
 
-    if (!manager.createCGroup(cgroupName)) {
-        std::cerr << "Falha ao criar cgroup.\n";
-        return;
-    }
+	if (!manager.createCGroup(cgroupName)) {
+		std::cerr << "Falha ao criar cgroup.\n";
+		return;
+	}
 
-    int pid = escolherPID();
-    if (!manager.moveProcessToCGroup(cgroupName, pid)) {
-        std::cerr << "Falha ao mover o processo para o cgroup.\n";
-        return;
-    }
+	int pid = escolherPID();
+	if (!manager.moveProcessToCGroup(cgroupName, pid)) {
+		std::cerr << "Falha ao mover o processo para o cgroup.\n";
+		return;
+	}
 
-    double cores;
-    std::cout << "Limite de CPU (em núcleos, ex: 0.5, 1.0, -1 para ilimitado): ";
-    std::cin >> cores;
-    manager.setCpuLimit(cgroupName, cores);
+	double cores;
+	std::cout << "Limite de CPU (em núcleos, ex: 0.5, 1.0, -1 para ilimitado): ";
+	std::cin >> cores;
+	manager.setCpuLimit(cgroupName, cores);
 
-    size_t memBytes;
-    std::cout << "Limite de memória (em bytes, ex: 1000000000): ";
-    std::cin >> memBytes;
-    manager.setMemoryLimit(cgroupName, memBytes);
+	size_t memBytes;
+	std::cout << "Limite de memória (em bytes, ex: 1000000000): ";
+	std::cin >> memBytes;
+	manager.setMemoryLimit(cgroupName, memBytes);
 
-    std::cout << "\n--- Relatório de uso ---\n";
+	std::cout << "\n--- Relatório de uso ---\n";
 
-    auto cpu = manager.readCpuUsage(cgroupName);
-    if (cpu.count("usage_usec"))
-        std::cout << "CPU total usada (µs): " << cpu["usage_usec"] << "\n";
-    if (cpu.count("user_usec"))
-        std::cout << "Tempo em modo usuário (µs): " << cpu["user_usec"] << "\n";
-    if (cpu.count("system_usec"))
-        std::cout << "Tempo em modo kernel (µs): " << cpu["system_usec"] << "\n";
+	auto cpu = manager.readCpuUsage(cgroupName);
+	if (cpu.count("usage_usec"))
+		std::cout << "CPU total usada (µs): " << cpu["usage_usec"] << "\n";
+	if (cpu.count("user_usec"))
+		std::cout << "Tempo em modo usuário (µs): " << cpu["user_usec"] << "\n";
+	if (cpu.count("system_usec"))
+		std::cout << "Tempo em modo kernel (µs): " << cpu["system_usec"] << "\n";
 
-    auto mem = manager.readMemoryUsage(cgroupName);
-    if (mem.count("memory.current"))
-        std::cout << "Memória atual (bytes): " << mem["memory.current"] << "\n";
+	auto mem = manager.readMemoryUsage(cgroupName);
+	if (mem.count("memory.current"))
+		std::cout << "Memória atual (bytes): " << mem["memory.current"] << "\n";
 
-    std::cout << "\nEstatísticas de BlkIO:\n";
-    auto blk = manager.readBlkIOUsage(cgroupName);
+	std::cout << "\nEstatísticas de BlkIO:\n";
+	auto blk = manager.readBlkIOUsage(cgroupName);
 
-    if (blk.empty()) {
-        std::cout << "(sem atividade de I/O registrada)\n";
-        return;
-    }
+	if (blk.empty()) {
+		std::cout << "(sem atividade de I/O registrada)\n";
+		return;
+	}
 
-    for (const auto& entry : blk) {
-        if (entry.rbytes == 0 && entry.wbytes == 0 && entry.dbytes == 0)
-            continue;
+	for (const auto& entry : blk) {
+		if (entry.rbytes == 0 && entry.wbytes == 0 && entry.dbytes == 0)
+			continue;
 
-        std::cout << "  Device " << entry.major << ":" << entry.minor << "\n";
+		std::cout << "  Device " << entry.major << ":" << entry.minor << "\n";
 
-        auto fmtBytes = [](uint64_t b) {
-            const char* suf[] = { "B", "KB", "MB", "GB", "TB" };
-            int i = 0;
-            double v = b;
-            while (v > 1024 && i < 4) { v /= 1024; i++; }
-            std::ostringstream oss;
-            oss << std::fixed << std::setprecision(2) << v << " " << suf[i];
-            return oss.str();
-            };
+		auto fmtBytes = [](uint64_t b) {
+			const char* suf[] = { "B", "KB", "MB", "GB", "TB" };
+			int i = 0;
+			double v = b;
+			while (v > 1024 && i < 4) { v /= 1024; i++; }
+			std::ostringstream oss;
+			oss << std::fixed << std::setprecision(2) << v << " " << suf[i];
+			return oss.str();
+			};
 
-        std::cout << "    Read:    " << fmtBytes(entry.rbytes)
-            << "  (" << entry.rios << " ops)\n";
-        std::cout << "    Write:   " << fmtBytes(entry.wbytes)
-            << "  (" << entry.wios << " ops)\n";
-        std::cout << "    Discard: " << fmtBytes(entry.dbytes)
-            << "  (" << entry.dios << " ops)\n\n";
-    }
+		std::cout << "    Read:    " << fmtBytes(entry.rbytes)
+			<< "  (" << entry.rios << " ops)\n";
+		std::cout << "    Write:   " << fmtBytes(entry.wbytes)
+			<< "  (" << entry.wios << " ops)\n";
+		std::cout << "    Discard: " << fmtBytes(entry.dbytes)
+			<< "  (" << entry.dios << " ops)\n\n";
+	}
 }
 
 // =========================================
@@ -278,7 +278,7 @@ void cgroupManager() {
 void resourceProfiler() {
 entrada:
 	int PID = escolherPID();
-	unsigned int intervalo;
+	double intervalo;
 
 	std::cout << "\033[1;36m"; // ciano em negrito
 	std::cout << "\n============================================================\n";
@@ -329,8 +329,8 @@ entrada:
 			}
 
 			if (flagMedicao) {
-				std::cout << " Primeira medição detectada... \n";
-				std::cout << " Dados e métricas serão mostrados a partir da segunda medição, por favor espere " << intervalo << " segundos... \n";
+				std::cout << "Primeira medição detectada... \n";
+				std::cout << "Dados e métricas serão mostrados a partir da segunda medição, por favor espere " << intervalo << " segundos... \n";
 				flagMedicao = false;
 			}
 			else {
@@ -339,14 +339,14 @@ entrada:
 				double tempoCPUAtual = medicaoAtual.utime + medicaoAtual.stime;
 				double tempoCPUAnterior = medicaoAnterior.utime + medicaoAnterior.stime;
 				double deltaCPU = tempoCPUAtual - tempoCPUAnterior;
-				double usoCPU = (deltaCPU / static_cast<double>(intervalo)) * 100;
+				double usoCPU = (deltaCPU / intervalo) * 100;
 				double usoCPUGlobal = usoCPU / (static_cast<double>(sysconf(_SC_NPROCESSORS_ONLN)));
 
 				//Cálculo das métricas de I/O (em KB)
-				double taxaleituraDisco = (static_cast<double>(medicaoAtual.bytesLidos - medicaoAnterior.bytesLidos) / static_cast<double>(intervalo)) / 1024;
-				double taxaleituraTotal = (static_cast<double>(medicaoAtual.rchar - medicaoAnterior.rchar) / static_cast<double>(intervalo)) / 1024;
-				double taxaEscritaDisco = (static_cast<double>(medicaoAtual.bytesEscritos - medicaoAnterior.bytesEscritos) / static_cast<double>(intervalo)) / 1024;
-				double  taxaEscritaTotal = (static_cast<double>(medicaoAtual.wchar - medicaoAnterior.wchar) / static_cast<double>(intervalo)) / 1024;
+				double taxaleituraDisco = (static_cast<double>(medicaoAtual.bytesLidos - medicaoAnterior.bytesLidos) / intervalo) / 1024;
+				double taxaleituraTotal = (static_cast<double>(medicaoAtual.rchar - medicaoAnterior.rchar) / intervalo) / 1024;
+				double taxaEscritaDisco = (static_cast<double>(medicaoAtual.bytesEscritos - medicaoAnterior.bytesEscritos) / intervalo) / 1024;
+				double  taxaEscritaTotal = (static_cast<double>(medicaoAtual.wchar - medicaoAnterior.wchar) / intervalo) / 1024;
 
 				resultado.usoCPU = usoCPU;
 				resultado.usoCPUGlobal = usoCPUGlobal;
@@ -360,7 +360,7 @@ entrada:
 					"================================================================================\n"
 					"|                                MEDIÇÃO (Processo %d)                          \n"
 					"================================================================================\n"
-					"| Intervalo de monitoramento: %3u segundos                                      |\n"
+					"| Intervalo de monitoramento: %3.2f segundos                                      |\n"
 					"--------------------------------------------------------------------------------\n"
 					"| CPU                      |            |\n"
 					"-----------------------------------------\n"
@@ -397,13 +397,11 @@ entrada:
 					"-----------------------------------------\n"
 					"| Network                  |            |\n"
 					"-----------------------------------------\n"
-					"| Bytes enviados (TX)      | %-10lu |\n"
-					"| Bytes recebidos (RX)     | %-10lu |\n"
-					"| Pacotes enviados         | %-10lu |\n"
-					"| Pacotes recebidos        | %-10lu |\n"
-					"| Conexões ativas          | %-10u |\n"
+					"| Bytes em fila (TX)       | %-10lu  |\n"
+					"| Bytes em fila (RX)       | %-10lu  |\n"
+					"| Conexões ativas          | %-10u  |\n"
 					"=========================================\n"
-					"| Próxima medição em %3u segundos...    |\n"
+					"| Próxima medição em %3.2f segundos...    |\n"
 					"=========================================\n\n\n\n\n",
 					medicaoAtual.PID, intervalo,
 					medicaoAtual.utime, medicaoAtual.stime, usoCPU, usoCPUGlobal,
@@ -412,8 +410,7 @@ entrada:
 					medicaoAtual.minfault, medicaoAtual.mjrfault,
 					medicaoAtual.syscallLeitura, medicaoAtual.syscallEscrita,
 					taxaleituraDisco, taxaleituraTotal, taxaEscritaDisco, taxaEscritaTotal,
-					medicaoAtual.bytesTx, medicaoAtual.bytesRx,
-					medicaoAtual.pacotesEnviados, medicaoAtual.pacotesRecebidos,
+					medicaoAtual.bytesTxfila, medicaoAtual.bytesRxfila,
 					medicaoAtual.conexoesAtivas,
 					intervalo
 				);
@@ -464,7 +461,7 @@ entrada:
 				}
 			}
 			medicaoAnterior = medicaoAtual;
-			std::this_thread::sleep_for(std::chrono::seconds(intervalo));
+			std::this_thread::sleep_for(std::chrono::duration<double>(intervalo));
 		}
 	}
 }
@@ -472,7 +469,7 @@ entrada:
 // =========================================
 // FUNÇÃO PARA O ANALISADOR DE NAMESPACE
 // =========================================
-void namespaceAnalyzer(){
+void namespaceAnalyzer() {
 	int sub;
 	do {
 		std::cout << "\033[1;36m"; // ciano em negrito
@@ -574,45 +571,45 @@ void namespaceAnalyzer(){
 }
 
 int main() {
-    int opcao;
-    do {
-        std::cout << "\n\033[0;4;31m===================== RESOURCE MONITOR =====================\033[0m\n";
-        std::cout << "\033[1m";
-        std::cout << " 1. Gerenciar Cgroups\n";
-        std::cout << " 2. Analisar Namespaces\n";
-      	std::cout << " 3. Perfilador de Recursos\n";
-        std::cout << " 4. Executar Experimentos\n";  
-        std::cout << " 0. Sair\n";
-        std::cout << " Escolha: ";
-        std::cin >> opcao;
-        std::cout << "\033[0m";
+	int opcao;
+	do {
+		std::cout << "\n\033[0;4;31m===================== RESOURCE MONITOR =====================\033[0m\n";
+		std::cout << "\033[1m";
+		std::cout << " 1. Gerenciar Cgroups\n";
+		std::cout << " 2. Analisar Namespaces\n";
+		std::cout << " 3. Perfilador de Recursos\n";
+		std::cout << " 4. Executar Experimentos\n";
+		std::cout << " 0. Sair\n";
+		std::cout << " Escolha: ";
+		std::cin >> opcao;
+		std::cout << "\033[0m";
 
-        switch (opcao) {
-        case 1:
-            cgroupManager();
-            break;
+		switch (opcao) {
+		case 1:
+			cgroupManager();
+			break;
 
-        case 2:
-            namespaceAnalyzer();
-            break;
-        
-        case 3: {
-				  resourceProfiler();
-				  break;
-			  }
-            
-        case 4: {
-            executarExperimentos();  
-            break;
-        }
-            
-        case 0:
-            std::cout << "Encerrando...\n";
-            break;
+		case 2:
+			namespaceAnalyzer();
+			break;
 
-        default:
-            std::cout << "Opção inválida!\n";
-        }
+		case 3: {
+			resourceProfiler();
+			break;
+		}
 
-    } while (opcao != 0);
+		case 4: {
+			executarExperimentos();
+			break;
+		}
+
+		case 0:
+			std::cout << "Encerrando...\n";
+			break;
+
+		default:
+			std::cout << "Opção inválida!\n";
+		}
+
+	} while (opcao != 0);
 }
