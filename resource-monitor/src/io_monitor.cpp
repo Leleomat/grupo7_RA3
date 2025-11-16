@@ -439,7 +439,7 @@ void limitacaoIO() {
 
         int status = 0;                       // status para waitpid
         pid_t r = waitpid(idFilho, &status, WNOHANG); // verifica se filho terminou sem bloquear
-        if (r == idFilho) {                   // se filho finalizou
+        if (r == idFilho) {                   // se filho finalizou           // marca flag
             break;                            // sai do loop
         }
     }
