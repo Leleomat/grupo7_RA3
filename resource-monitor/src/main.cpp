@@ -34,8 +34,6 @@ void salvarMedicoesCSV(const StatusProcesso& medicao, const calculoMedicao& calc
 {
     // Obtém o diretório atual do programa
     std::filesystem::path base = std::filesystem::current_path();
-    // Sobe 1 nível na hierarquia de pastas
-    base = base.parent_path();
     // Constrói o path completo para o arquivo CSV: [base]/docs/dados[PID].csv
     std::filesystem::path path = base / "docs" / ("dados" + std::to_string(medicao.PID) + ".csv");
 
