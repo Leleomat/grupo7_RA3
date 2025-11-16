@@ -116,7 +116,35 @@ O Resource Profiler é implementado de forma modular e periódica, mantendo uma 
 ### Componente 2 - Namespace Analyzer
 
 ### Componente 3 - Control Group Manager
+O Control Group Manager (CGroupManager) é o componente do Resource Monitor responsável por manipular diretamente os cgroups v2 do Linux para controle e limitação de recursos dos processos monitorados. Ele permite criar grupos de controle, aplicar limites de CPU e memória, mover processos entre cgroups e coletar métricas internas fornecidas pelo kernel.
 
+Esse componente complementa o Resource Profiler e o Namespace Analyzer ao oferecer mecanismos ativos de controle, não apenas observação, possibilitando a construção de experimentos, restrições e políticas de isolamento de recursos.
+
+#### Criação e gerenciamento de cgroups
+
+O módulo permite a criação dinâmica de cgroups dentro do diretório raiz do sistema (ex.: /sys/fs/cgroup/). A função createCGroup() cria um novo diretório e habilita o controle de CPU, memória, IO e pids para subgrupos. Uma vez criado o cgroup, processos podem ser movidos para ele através da função moveProcessToCGroup(), que escreve o PID no arquivo cgroup.procs, garantindo que o kernel passe a contabilizar e aplicar limites ao processo.
+
+#### Aplicação de limites de CPU e memória
+
+O Control Group Manager implementa mecanismos completos de limitação de recursos:
+
+* CPU: A função setCpuLimit() escreve valores no arquivo cpu.max, permitindo definir cotas em número de “cores equivalentes”. Por exemplo, 0.5 corresponde a 50% de um núcleo, enquanto valores negativos representam ausência de limite. O código converte esta fração em períodos e quantas de tempo (quota/period) conforme padrão do kernel.
+
+* Memória: A função setMemoryLimit() escreve diretamente em memory.max, configurando um limite rígido para o uso de memória física pelo cgroup. Caso o processo extrapole esse limite, o kernel pode bloquear novas alocações ou acionar o OOM Killer.
+
+#### Coleta de métricas internas do cgroup
+
+O módulo também implementa rotinas de leitura das estatísticas expostas pelo kernel dentro dos arquivos:
+
+* cpu.stat: tempo total de CPU, períodos de throttling, etc.
+
+* memory.current: uso atual de memória.
+
+* io.stat: estatísticas de leitura e escrita por dispositivo.
+
+Arquivos adicionais como memory.events e memory.peak são utilizados nos experimentos.
+
+Essas funções retornam mapas e estruturas com valores numéricos que permitem análises gerais e comparações entre limites aplicados e comportamento real do processo.
 ---
 
 ## Metodologia de Testes
