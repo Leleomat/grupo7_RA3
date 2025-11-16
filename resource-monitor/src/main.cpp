@@ -294,6 +294,7 @@ void cgroupManager() {
         // Mostra opções ao usuário de qual tipo de processo deseja usar 
         std::cout << " 1. Escolher processo existente\n";
         std::cout << " 2. Criar processo de teste para I/O\n";
+        std::cout << " 0. Voltar ao menu principal.\n";
         std::cout << "Escolha: ";
 
         std::cin >> opc; // Armazena a opção na variável de opção
@@ -322,6 +323,9 @@ void cgroupManager() {
                 return;
             }
             break; // Sai do loop
+        }
+        else if (opc == 0) { // Caso tenha digitado 0, volta ao menu principal 
+            return;
         }
         else {
             std::cerr << "Opção inválida. Digite 1 ou 2.\n\n"; // Se o usuário digitou algul número diferente de 1 ou 2 mostra mensagem
@@ -401,14 +405,16 @@ void cgroupManager() {
 
         std::cout << "\nEstatísticas de BlkIO:\n";
 
+        // Armazena em blk a leitura de BlkIO usando a função da classe CGroupManager readBlkIOUsage()
         auto blk = manager.readBlkIOUsage(cgroupName);
 
-        bool encontrouAlgo = false;  // marca se achamos alguma linha útil
+        bool encontrouAlgo = false;  // Marca se encontra alguma linha útil
 
+        // Loop que percorre cada entrada de blk
         for (const auto& entry : blk) {
 
-            // Se todas as métricas forem zero, ignore
-            if (entry.rbytes == 0 &&
+            // Se todas as métricas forem zero, segue para a próxima leitura
+            if (entry.rbytes == 0 && 
                 entry.wbytes == 0 &&
                 entry.dbytes == 0 &&
                 entry.rios == 0 &&
@@ -418,52 +424,59 @@ void cgroupManager() {
                 continue;
             }
 
+            // Encontrou alguma informação de IO, marcando encontrouAlgo como true
             encontrouAlgo = true;
 
+            // Exibe o identificador do dispositivo (0:0 é usado como "Device Default")
             if (entry.major == 0 && entry.minor == 0)
                 std::cout << "  Device Default\n";
-            else
+            else // Caso não seja um dispositivo padrão
                 std::cout << "  Device " << entry.major << ":" << entry.minor << "\n";
 
+            // Declaração de um lambda (função anônima) que recebe um uint64_t b (número de bytes) e retorna um sufixo
             auto fmtBytes = [](uint64_t b) {
-                const char* suf[] = { "B", "KB", "MB", "GB", "TB" };
-                int i = 0;
-                double v = static_cast<double>(b);
-                while (v >= 1024.0 && i < 4) {
-                    v /= 1024.0;
-                    i++;
+                const char* suf[] = { "B", "KB", "MB", "GB", "TB" }; // Vetor de sufixos de unidade 
+                int i = 0; // Índice no array suf, começando em 0 (unidade "B").
+                double v = static_cast<double>(b); // Converte b para double para permitir divisões não inteiras e formatação com casas decimais.
+                while (v >= 1024.0 && i < 4) { // Loop que reduz v dividindo por 1024 enquanto ainda for grande o suficiente e enquanto não ultrapassar o último sufixo (TB)
+                    v /= 1024.0; // Divide v por 1024 — move para a próxima unidade(B → KB → MB → ...).
+                    i++; // Incrementa o índice para usar o próximo sufixo.
                 }
-                std::ostringstream oss;
-                oss << std::fixed << std::setprecision(2) << v << " " << suf[i];
-                return oss.str();
-                };
+                std::ostringstream oss; // Cria um stream de saída em string para montar o texto com formatação.
+                oss << std::fixed << std::setprecision(2) << v << " " << suf[i]; // Escreve v com formato fixo e 2 casas decimais, seguido de espaço e o sufixo correspondente.
+                return oss.str(); // Retorna a string gerada (ex.: "1.50 MB").
+            };
 
+            // Mostra na tela a quantidade de memória lida e a quantidade de operações de leitura realizadas
             std::cout << "    Read:    " << fmtBytes(entry.rbytes)
                 << "  (" << entry.rios << " ops)\n";
 
+            // Mostra na tela a quantidade de memória escrita e a quantidade de operações de escrita realizadas
             std::cout << "    Write:   " << fmtBytes(entry.wbytes)
                 << "  (" << entry.wios << " ops)\n";
 
+            // Mostra na tela a quantidade de memória descartada e a quantidade de operações de descarte realizadas
             std::cout << "    Discard: " << fmtBytes(entry.dbytes)
                 << "  (" << entry.dios << " ops)\n\n";
         }
 
+        // Verifica se não encontrou algo, mostrando mensagem que não encontrou IO nessa leitura
         if (!encontrouAlgo) {
             std::cout << "(nenhuma operação de I/O registrada até agora)\n";
         }
 
-        // A cada iteração aguarda 3 segundos antes de atualizar
+        // A cada iteração aguarda 2 segundos antes de atualizar
         sleep(2);
         numeroLeitura = numeroLeitura + 1; // Incrementa em 1 no numero da leitura 
     }
 
-    std::cout << "Monitoramento de cgroup encerrado.\n";
+    std::cout << "Monitoramento de cgroup encerrado.\n"; // Mostra mensagem final do relatório de CGroups
 
-    // Se o processo for de IO e ainda existir, mata
+    // Se o processo for de IO e ainda existir, finaliza
     if (pid > 0 && kill(pid, 0) == 0 && opc == 2) {
         std::cout << "Encerrando processo de teste de I/O (PID " << pid << ")...\n";
-        kill(pid, SIGKILL);
-        waitpid(pid, nullptr, 0);
+        kill(pid, SIGKILL); // Mata o processo imediatamente
+        waitpid(pid, nullptr, 0); // Aguarda o processo finalizar
         std::cout << "Processo finalizado.\n";
     }
 }
