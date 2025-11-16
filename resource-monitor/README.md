@@ -348,11 +348,85 @@ O experimento confirma que cgroups v2 aplica corretamente o controle de CPU, com
 
 ### Experimento 4 - Limitação de Memória - Felipe Coelho Ramos
 
-### Condições
+#### Condições
+
+O experimento teve como objetivo estudar o comportamento do limitador de memória (memory.max) do cgroups v2, observando:
+
+* O ponto exato de disparo do OOM killer;
+
+* O uso máximo registrado (memory.peak);
+
+* O comportamento de eventos de memória registrados em memory.events.
+
+Para isso, foi definido um limite rígido de: 100 MB (memory.max = 100 * 1024 * 1024)
+
+O processo filho executou múltiplas alocações progressivas de memória em blocos de 20 MB, preenchendo cada bloco com zeros via memset(), garantindo a efetiva utilização física da memória e permitindo ao cgroup contabilizar corretamente o consumo.
 
 ### Execução
+O experimento ocorreu em duas fases:
+
+#### Fase do Filho (alocação de memória incremental)
+
+Dentro do cgroup recém-criado, o processo filho executou um loop contínuo:
+
+* Aloca 20 MB (malloc)
+
+* Preenche o bloco (memset)
+
+* Armazena o ponteiro para impedir desalocação
+
+* Soma ao total alocado
+
+* Lê memory.current do cgroup
+
+* Imprime progresso (“Alocado: X MB | memory.current=Y”)
+
+* Aguarda 100 ms para permitir atualização dos contadores
+
+Esse processo continuou até:
+
+* malloc() falhar, ou
+
+* o kernel enviar SIGKILL devido ao limite de memory.max.
+
+Essa abordagem demonstra claramente como a pressão de memória cresce e como o kernel reage.
+
+#### Fase do Pai (diagnóstico do término e leitura de eventos)
+
+Após o término do processo filho, o processo pai:
+
+* Verificou se o filho foi morto por sinal (especialmente SIGKILL);
+
+* Leu o arquivo memory.events, obtendo: oom — número de falhas de alocação, oom_kill — número de kills aplicados pelo kernel e high — violações do limite soft.
+
+* Leu o arquivo memory.peak, contendo o uso máximo real observado.
+
+Por fim, exibiu um resumo detalhado dos eventos e métricas coletadas.
+
+No experimento 4 memory.failcnt não foi utilizado simplesmente porque o kernel não fornece esse arquivo em cgroups v2.
+
+Logo, não há como coletar valores ou integrá-lo ao experimento. O equivalente funcional no modelo unificado é o arquivo memory.events, que contém:
+
+* high → número de vezes que o uso ultrapassou o limite "high"
+
+* max → número de vezes que o uso tentou ultrapassar memory.max
+
+* oom → ocorrências de OOM dentro do grupo
+
+* oom_kill → vezes em que um processo foi morto
 
 ### Resultado
+O Experimento 4 avaliou o comportamento de um processo submetido a um limite rígido de memória imposto pelo cgroup. Durante a execução, o processo continuou alocando blocos de memória crescentes até atingir o ponto em que novas alocações passaram a ultrapassar o limite configurado. A cada tentativa de alocação, o uso real registrado pelo kernel se aproximou rapidamente do teto permitido, permanecendo praticamente estável nesse valor nas últimas iterações.
+
+Assim que o processo excedeu sua capacidade de alocação dentro do cgroup, ele foi encerrado de forma abrupta por um sinal enviado pelo kernel. A saída diagnóstica indica claramente que o término ocorreu por uma intervenção do OOM Killer, mecanismo interno do kernel que elimina processos quando não é possível satisfazer novas solicitações de memória dentro das restrições do grupo.
+
+Os contadores finais confirmam esse comportamento: o cgroup registrou um evento de estouro de memória e um evento explícito de OOM Kill, evidenciando que o kernel tanto detectou a violação do limite quanto executou a ação correspondente. Não houve registro de eventos de pressão moderada (como o estado high), o que mostra que o processo não teve um período prolongado de degradação por falta de memória; em vez disso, ele atingiu o limite de forma súbita e foi encerrado rapidamente.
+
+O valor máximo observado no experimento coincide exatamente com o limite imposto ao cgroup, indicando que o kernel impediu qualquer avanço além do valor configurado — comportamento esperado em um cenário de limite rígido (memory.max). Isso mostra que o controle de memória do cgroup operou de forma precisa: permitiu uso até o teto e bloqueou imediatamente qualquer avanço adicional, resultando no encerramento do processo.
+
+<img width="465" height="233" alt="image" src="https://github.com/user-attachments/assets/a424a352-7243-4183-9701-cf6a6bb22104" />
+
+De forma geral, o experimento demonstra que o mecanismo de limitação de memória em cgroups v2 reage de maneira determinística e previsível: permite alocações até o limite, trava na fronteira e, diante de novas tentativas de alocar memória, aciona o OOM Killer sem transições intermediárias.
 
 ### Experimento 5 - Limitação de I/O - Caliel Carvalho de Medeiros
 
