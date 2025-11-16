@@ -310,136 +310,165 @@ std::vector<BlkIOStats> CGroupManager::readBlkIOUsage(const std::string& name) {
     return list;
 }
 
+// Função que faz a leitura da quantidade de interações (ticks) de CPU de um processo desde de sua execução. Recebe como parâmetro o id do processo filho 
 uint64_t CGroupManager::readIterationsFromChild(pid_t pid) {
+    // Monta o caminho para o arquivo /proc/<pid>/stat. Esse arquivo contém dezenas de campos com estatísticas do processo
     std::string path = "/proc/" + std::to_string(pid) + "/stat";
+
+    // Abre o arquivo para leitura
     std::ifstream f(path);
-    if (!f.is_open()) {
+    if (!f.is_open()) { // Caso o processo já tenha terminado ou o arquivo não exista, retorna 0 para indicar falha/leitura inválida.
         return 0;
     }
 
     std::string token;
     std::vector<std::string> fields;
 
+    // Lê o arquivo inteiro token por token (separado por espaços)
+    // Cada token corresponde a um campo da especificação de /proc/<pid>/stat
     while (f >> token) {
-        fields.push_back(token);
+        fields.push_back(token); // Adiciona no vetor de campos o valor da leitura
     }
 
+    // /proc/<pid>/stat deve ter pelo menos 15 campos para acessar utime e stime.
     if (fields.size() < 15) {
-        return 0;
+        return 0; // Caso não haja campos suficientes, retorna 0.
     }
 
-    uint64_t utime = std::stoull(fields[13]); // campo 14
-    uint64_t stime = std::stoull(fields[14]); // campo 15
+    // Campo 14 (vetor na posição 13) do /proc/<pid>/stat → utime (tempo de CPU em modo usuário)
+    uint64_t utime = std::stoull(fields[13]);
 
+    // Campo 15 (vetor na posição 14) do /proc/<pid>/stat → stime (tempo de CPU em modo kernel)
+    uint64_t stime = std::stoull(fields[14]);
+
+    // Retorna a soma. Isso representa o total de "ticks" de CPU consumidos pelo processo desde que começou a executar.
+    // Usa isso como aproximação para "iterações", pois o processo é puramente CPU-bound (busy loop).
     return utime + stime;
 }
 
 // ===== Experimento 3: testar throttling de CPU =====
 void CGroupManager::runCpuThrottlingExperiment() {
-
+    // Cria um nome único para o cgroup usando o timestamp atual
     std::string cg = "exp3_" + std::to_string(time(nullptr));
+    // Tenta criar o cgroup com esse nome (assume que createCGroup trata erros)
     this->createCGroup(cg);
 
     std::cout << "\n===== EXPERIMENTO 3 — CPU THROTTLING =====\n";
 
+    // Cria um processo filho que será o gerador de carga (CPU-bound)
     pid_t pid = fork();
     if (pid < 0) {
+        // fork falhou, imprime erro e retorna 
         std::cerr << "fork falhou\n";
         return;
     }
 
-    // =====================================================================
-    // === FILHO ===
-    // =====================================================================
+    // === BLOCO DO FILHO: cria a carga CPU-bound e se move para o cgroup
     if (pid == 0) {
-
-        // mover o próprio processo para o cgroup
+        // Cria uma instância local do gerenciador para poder usar moveProcessToCGroup (usa mesmo basePath do objeto pai)
         CGroupManager mgr(this->basePath);
+
+        // Move o próprio processo (filho) para o cgroup recém-criado
         mgr.moveProcessToCGroup(cg, getpid());
 
-        // processo CPU-bound (busy loop puro)
+        // Loop de busy-wait puro (gera carga de CPU contínua)
+        // Usa asm volatile("") para evitar que o compilador otimize (remova) o loop
         while (true) {
-            asm volatile(""); // evita otimizações do compilador
+            asm volatile(""); // evita otimização do compilador
         }
 
-        exit(0); // nunca chega aqui
+        exit(0);
     }
 
-    // =====================================================================
-    // === PAI ===
-    // =====================================================================
+    // === BLOCO DO PAI: aplica limites, estabiliza e faz medições
+
+    // Vetor com os limites (em "núcleos") que serão testados pelo experimento.
+    // Ex: 0.25 significa 25% de um core, 2.0 significa 200% (dois cores).
     std::vector<double> limites = { 0.25, 0.5, 1.0, 2.0 };
 
+    // Itera sobre cada limite, aplica-o e mede CPU e throughput
     for (double lim : limites) {
 
-        // Aplicar limite
+        // Aplica o limite de CPU no cgroup usando setCpuLimite()
         this->setCpuLimit(cg, lim);
 
-        // Deixar estabilizar
+        // Dá um pequeno tempo para o kernel e o cgroup estabilizarem o regime de throttling.
+        // Sem essa pausa as leituras logo após a mudança podem refletir estados transitórios.
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-        // -----------------------------------------------------------------
-        // LEITURA INICIAL (usage_usec + ticks do processo)
-        // -----------------------------------------------------------------
+        // LEITURA INICIAL: pega snapshot das métricas antes da janela de medição
 
+        // readCpuUsage(cg) devolve um mapa com métricas do cgroup de uso da CPU
         auto stat_before = this->readCpuUsage(cg);
         if (!stat_before.count("usage_usec")) {
+            // Se não existir usage_usec, salta este limite 
             std::cerr << "cpu.stat não contém usage_usec\n";
             continue;
         }
 
+        // usage_before é o tempo total de CPU consumido pelo cgroup (em segundos).
         double usage_before = stat_before["usage_usec"] / 1e6; // micros → segundos
+
+        // readIterationsFromChild(pid) retorna soma de utime+stime do processo (em ticks).
+        // Usa-se isso para estimar "throughput" do loop do filho (ticks delta por segundo).
         uint64_t ticks_before = this->readIterationsFromChild(pid);
 
+        // Marca tempo de início da janela de medição (wall-clock)
         auto t0 = std::chrono::high_resolution_clock::now();
 
-        // Janela de medição (2 segundos)
+        // Janela de medição 
+        // 2 segundos é um bom trade-off entre estabilidade e tempo de execução do experimento.
         std::this_thread::sleep_for(std::chrono::seconds(2));
 
+        // Marca tempo de fim da janela de medição
         auto t1 = std::chrono::high_resolution_clock::now();
 
-        // -----------------------------------------------------------------
-        // LEITURA FINAL
-        // -----------------------------------------------------------------
+        // LEITURA FINAL: métricas após a janela
 
         auto stat_after = this->readCpuUsage(cg);
+        // Leitura final de usage (em segundos)
         double usage_after = stat_after["usage_usec"] / 1e6;
 
+        // Leitura final de utime+stime do processo (em clock ticks)
         uint64_t ticks_after = this->readIterationsFromChild(pid);
 
-        // -----------------------------------------------------------------
-        // Cálculos de delta
-        // -----------------------------------------------------------------
+        // CÁLCULOS: deltas, porcentagem de CPU e throughput
 
+        // Tempo de CPU efetivamente usado pelo cgroup durante a janela (em segundos)
         double cpu_used = usage_after - usage_before;
+
+        // Duração real da janela em segundos 
         double secs = std::chrono::duration<double>(t1 - t0).count();
 
-        // CPU efetiva (%) = (tempo de CPU usado / tempo de parede) * 100
+        // CPU efetiva em percentagem: (tempo de CPU gasto / tempo de parede) * 100
+        // Ex.: se cpu_used == 0.5s em uma janela de 1.0s -> 50%
         double cpuPercent = (cpu_used / secs) * 100.0;
 
-        // Throughput em ticks/segundo
+        // Throughput estimado a partir do delta de ticks (utime+stime do processo)
+        // ticks representa clock ticks do kernel; a variação (ticks_after - ticks_before) dividida por secs dá ticks por segundo — útil como proxy de "iterações/s"
         uint64_t ticks = ticks_after - ticks_before;
         double throughput = ticks / secs;
 
-        // Cálculo do desvio
+        // Valor esperado (lim em núcleos multiplicado por 100 para converter em %)
         double expected = lim * 100.0;
+
+        // Desvio percentual relativo entre medição e esperado:
+        // (medido - esperado) / esperado * 100
+        // positivo -> medido maior; negativo -> medido menor
         double desvio = ((cpuPercent - expected) / expected) * 100.0;
 
-        // -----------------------------------------------------------------
-        // Imprimir resultados
-        // -----------------------------------------------------------------
-
+        // IMPRIME RESULTADOS
         std::cout << "\n--- Limite: " << lim << " cores ---\n";
-        std::cout << "CPU medido:       " << cpuPercent << "%\n";
-        std::cout << "CPU esperado:     " << expected << "%\n";
-        std::cout << "Desvio:           " << desvio << "%\n";
-        std::cout << "Throughput (ticks/s): " << throughput << "\n";
+        std::cout << "CPU medido:       " << cpuPercent << "%\n";       // CPU real no período
+        std::cout << "CPU esperado:     " << expected << "%\n";         // limite configurado
+        std::cout << "Desvio:           " << desvio << "%\n";           // diferença relativa
+        std::cout << "Throughput (ticks/s): " << throughput << "\n";    // ticks por segundo do processo
     }
 
-    // Encerrar filho
+    // Encerra o processo filho que gerou carga 
     kill(pid, SIGKILL);
     int status = 0;
-    waitpid(pid, &status, 0);
+    waitpid(pid, &status, 0); // Aguarda o processo finalizar
 }
 
 // ===== Experimento 4: testar limite de memória =====
@@ -448,71 +477,86 @@ void CGroupManager::runMemoryLimitExperiment() {
     this->createCGroup(cg);                                  // cria o cgroup
 
     // Limite fixo de 100 MB
-    this->setMemoryLimit(cg, 100ull * 1024 * 1024);          // escreve 100 * 1024 * 1024 bytes em memory.max
+    this->setMemoryLimit(cg, 100ull * 1024 * 1024);          // memory.max = 100MB
 
     std::cout << "\n===== EXPERIMENTO 4 — LIMITE DE MEMÓRIA (cgroups v2) =====\n";
 
-    pid_t pid = fork();                                      // cria filho
-    if (pid < 0) {                                           // (opcional) checar erro no fork
+    pid_t pid = fork();
+    if (pid < 0) {
         std::cerr << "fork falhou\n";
         return;
     }
 
-    if (pid == 0) {                                          // === FILHO ===
-        CGroupManager mgr(this->basePath);                   // instância local para manipular cgroup
-        mgr.moveProcessToCGroup(cg, getpid());               // move o próprio filho para o cgroup
+    if (pid == 0) {
+        // === FILHO ===
+        CGroupManager mgr(this->basePath);
+        mgr.moveProcessToCGroup(cg, getpid());
 
-        std::vector<void*> blocos;                           // vetor para guardar ponteiros alocados
-        size_t total = 0;                                    // total alocado
-        const size_t passo = 20 * 1024 * 1024; // 20 MB    // tamanho do bloco alocado por iteração
+        std::vector<void*> blocos;
+        size_t total = 0;
+        const size_t passo = 20 * 1024 * 1024; // 20 MB
 
         while (true) {
-            void* b = malloc(passo);                         // tenta alocar 20 MB
-            if (!b) break;    // Caso o malloc falhe, encerramos // malloc retorna NULL se não houver memória
-            memset(b, 0, passo);                             // escreve em toda a memória para garantir alocação física
+            void* b = malloc(passo);
+            if (!b) break; // malloc falhou → limite atingido sem OOM kill
 
-            blocos.push_back(b);                             // guarda ponteiro para liberar depois (não libera aqui)
-            total += passo;                                  // atualiza contagem
+            memset(b, 0, passo); // força commit físico da memória
 
-            auto mem = mgr.readMemoryUsage(cg);              // lê memory.current do cgroup
+            blocos.push_back(b);
+            total += passo;
+
+            auto mem = mgr.readMemoryUsage(cg);
 
             std::cout << "Alocado: " << (total / (1024 * 1024))
-                << " MB | memory.current=" << mem["memory.current"]
-                << "\n";
+                      << " MB | memory.current=" << mem["memory.current"]
+                      << "\n";
 
-            std::this_thread::sleep_for(std::chrono::milliseconds(100)); // pequena pausa entre alocações
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 
-        exit(0); // Só acontece se o filho terminar sem OOM kill — se OOM killer matar, parent verá sinal
+        exit(0); // Se terminar normalmente (sem OOM kill)
     }
 
     // === PAI ===
     int status;
-    waitpid(pid, &status, 0);                                // espera o filho terminar (OOM kill ou exit)
+    waitpid(pid, &status, 0);
 
-    // Ler memory.events (contadores gerados pelo kernel)
+    // Mostrar como o processo terminou 
+    if (WIFSIGNALED(status)) {
+        int sig = WTERMSIG(status);
+        std::cout << "\n[Diagnóstico] Processo filho terminou por sinal: "
+                  << sig << "\n";
+        if (sig == SIGKILL) {
+            std::cout << "[Diagnóstico] Provável OOM killer atuou.\n";
+        }
+    } else if (WIFEXITED(status)) {
+        std::cout << "\n[Diagnóstico] Processo terminou normalmente (exit="
+                  << WEXITSTATUS(status) << ").\n";
+    }
+
+    // Ler memory.events
     size_t oom = 0, oom_kill = 0, high = 0;
     {
-        std::ifstream fe(this->basePath + cg + "/memory.events"); // abre memory.events
+        std::ifstream fe(this->basePath + cg + "/memory.events");
         std::string k;
         size_t v;
-        while (fe >> k >> v) {                                 // form: "<key> <value>" por linha
-            if (k == "oom")      oom = v;                      // atualiza contadores correspondentes
+        while (fe >> k >> v) {
+            if (k == "oom")      oom = v;
             if (k == "oom_kill") oom_kill = v;
             if (k == "high")     high = v;
         }
     }
 
-    // Ler memory.peak (pico de uso medido pelo kernel)
+    // Ler memory.peak
     size_t peak = 0;
     {
         std::ifstream fp(this->basePath + cg + "/memory.peak");
-        if (fp) fp >> peak;                                    // se o arquivo existir, lê o valor
+        if (fp) fp >> peak;
     }
 
     std::cout << "\n===== RESULTADO FINAL =====\n";
-    std::cout << "oom       = " << oom << "\n";                  // número de eventos oom
-    std::cout << "oom_kill  = " << oom_kill << "\n";            // número de kills pelo oom_killer
-    std::cout << "high      = " << high << "\n";                // número de eventos high (pressionamento de memória)
-    std::cout << "Máximo de memória alcançada = " << peak / (1024 * 1024) << " MB\n"; // pico em MB
+    std::cout << "Out Of Memory (OOM)           = " << oom << "\n";
+    std::cout << "Out Of Memory Kill (OOM Kill) = " << oom_kill << "\n";
+    std::cout << "Memory High                   = " << high << "\n";
+    std::cout << "Máximo alcançado              = " << peak / (1024 * 1024) << " MB\n";
 }
