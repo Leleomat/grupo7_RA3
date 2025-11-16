@@ -220,49 +220,77 @@ std::map<std::string, size_t> CGroupManager::readMemoryUsage(const std::string& 
     return stats;
 }
 
-// lê io.stat e devolve uma lista de BlkIOStats (uma struct com campos para rbytes, wbytes, etc.)
 std::vector<BlkIOStats> CGroupManager::readBlkIOUsage(const std::string& name) {
-    std::ifstream f(basePath + name + "/io.stat"); // abre io.stat
+    std::ifstream f(basePath + name + "/io.stat");
     std::vector<BlkIOStats> list;
 
-    if (!f.is_open()) {                             // se não abriu, informa e retorna vetor vazio
+    if (!f.is_open()) {
         std::cerr << "Falha ao abrir io.stat\n";
         return list;
     }
 
+    list.reserve(8); // geralmente poucos dispositivos por cgroup
+
     std::string line;
+    while (std::getline(f, line)) {
 
-    while (std::getline(f, line)) {                 // lê linha por linha
-        if (line.empty()) continue;                 // ignora linhas vazias
+        if (line.empty())
+            continue;
 
-        BlkIOStats s{};                             // inicializa struct (zeros)
-        std::istringstream iss(line);               // cria stream a partir da linha
+        std::istringstream iss(line);
 
-        // formato esperado:
-        // 8:0 rbytes=123 wbytes=456 rios=3 wios=4 dbytes=0 dios=0
-        iss >> s.major;                             // lê major (número antes do ':')
-        iss.ignore(1); // ':'                        // descarta o caractere ':' que separa major:minor
-        iss >> s.minor;                             // lê minor (número após ':')
+        BlkIOStats s{};
 
-        std::string kv;
-        while (iss >> kv) {                         // lê tokens do tipo key=value
-            auto pos = kv.find('=');                // encontra o '='
-            if (pos == std::string::npos) continue; // se não encontrou '=', pula
-            std::string key = kv.substr(0, pos);    // chave (ex: "rbytes")
-            uint64_t val = std::stoull(kv.substr(pos + 1)); // converte a parte após '=' para inteiro
+        // --- Ler major:minor OU "Default" ---
+        std::string device;
+        iss >> device;
 
-            if (key == "rbytes") s.rbytes = val;    // preenche o campo adequado na struct
-            else if (key == "wbytes") s.wbytes = val;
-            else if (key == "rios") s.rios = val;
-            else if (key == "wios") s.wios = val;
-            else if (key == "dbytes") s.dbytes = val;
-            else if (key == "dios") s.dios = val;
+        auto colon = device.find(':');
+        if (colon != std::string::npos) {
+            // Ex: "8:0"
+            try {
+                s.major = std::stoul(device.substr(0, colon));
+                s.minor = std::stoul(device.substr(colon + 1));
+            }
+            catch (...) {
+                continue; // ignora linha malformada
+            }
+        }
+        else {
+            // Ex: "Default"
+            s.major = s.minor = 0;
         }
 
-        list.push_back(s);                          // adiciona a entrada do dispositivo ao vetor
+        // --- Ler key=value ---
+        std::string kv;
+        while (iss >> kv) {
+            auto pos = kv.find('=');
+            if (pos == std::string::npos)
+                continue;
+
+            std::string key = kv.substr(0, pos);
+            std::string valStr = kv.substr(pos + 1);
+
+            uint64_t val = 0;
+            try {
+                val = std::stoull(valStr);
+            }
+            catch (...) {
+                continue; // token inválido
+            }
+
+            if (key == "rbytes") s.rbytes = val;
+            else if (key == "wbytes") s.wbytes = val;
+            else if (key == "rios")   s.rios = val;
+            else if (key == "wios")   s.wios = val;
+            else if (key == "dbytes") s.dbytes = val;
+            else if (key == "dios")   s.dios = val;
+        }
+
+        list.push_back(s);
     }
 
-    return list;                                    // retorna o vetor com estatísticas de I/O
+    return list;
 }
 
 // ===== Experimento 3: testar throttling de CPU =====
