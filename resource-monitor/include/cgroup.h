@@ -6,14 +6,14 @@
 
 // Estrutura responsável por armazenar os dados de BlkIO de um processo em um CGroup
 struct BlkIOStats {
-    int major;
-    int minor;
-    uint64_t rbytes;
-    uint64_t wbytes;
-    uint64_t rios;
-    uint64_t wios;
-    uint64_t dbytes;
-    uint64_t dios;
+	int major;
+	int minor;
+	uint64_t rbytes;
+	uint64_t wbytes;
+	uint64_t rios;
+	uint64_t wios;
+	uint64_t dbytes;
+	uint64_t dios;
 };
 
 // Classe CGroupManager que possuí todas as funções atribuídas
@@ -35,6 +35,6 @@ public:
     void runCpuThrottlingExperiment();
     uint64_t readIterationsFromChild(pid_t pid); 
 
-    // Experimento 4 — Limite de Memória
-    void runMemoryLimitExperiment();
+	// Experimento 4 — Limite de Memória
+	void runMemoryLimitExperiment();
 };
