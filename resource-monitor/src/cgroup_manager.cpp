@@ -6,7 +6,7 @@
 #include <vector>                 // std::vector para vetores dinâmicos.
 #include <unistd.h>               // getpid(), fork(), usleep(), etc. (POSIX).
 #include <thread>                 // std::thread, std::this_thread::sleep_for — temporizações.
-#include <atomic>                 // std::atomic (incluído, mas não usado explicitamente aqui).
+#include <atomic>                 // std::atomic 
 #include <chrono>                 // std::chrono para medir intervalos de tempo.
 #include <cstring>                // memset, etc. (C string ops).
 #include <sys/types.h>            // tipos POSIX (pid_t, etc.).
@@ -473,90 +473,104 @@ void CGroupManager::runCpuThrottlingExperiment() {
 
 // ===== Experimento 4: testar limite de memória =====
 void CGroupManager::runMemoryLimitExperiment() {
-    std::string cg = "exp4_" + std::to_string(time(nullptr)); // nome único do cgroup
-    this->createCGroup(cg);                                  // cria o cgroup
+    // Nome único do cgroup (timestamp evita colisões entre execuções)
+    std::string cg = "exp4_" + std::to_string(time(nullptr)); // Nome único do cgroup
+    this->createCGroup(cg);                                   // Cria o cgroup no filesystem de cgroups
 
-    // Limite fixo de 100 MB
-    this->setMemoryLimit(cg, 100ull * 1024 * 1024);          // memory.max = 100MB
+    // Limite fixo de 100 MB (memory.max é o limite em cgroups v2)
+    this->setMemoryLimit(cg, 100ull * 1024 * 1024);          // Memory.max = 100MB
 
     std::cout << "\n===== EXPERIMENTO 4 — LIMITE DE MEMÓRIA (cgroups v2) =====\n";
 
-    pid_t pid = fork();
-    if (pid < 0) {
-        std::cerr << "fork falhou\n";
+    pid_t pid = fork(); // Cria um processo filho
+    if (pid < 0) { // Caso o PID seja menor que 0, ocorreu um erro na criação
+        std::cerr << "fork falhou\n"; // Mostra mensagem ao usuário
         return;
     }
 
     if (pid == 0) {
         // === FILHO ===
+        // Cria um novo CGroupManager local para operações dentro do filho.
         CGroupManager mgr(this->basePath);
-        mgr.moveProcessToCGroup(cg, getpid());
+        mgr.moveProcessToCGroup(cg, getpid()); // Move o processo filho para o cgroup criado
 
-        std::vector<void*> blocos;
+        std::vector<void*> blocos; // Guarda-se ponteiros para evitar free automático
         size_t total = 0;
-        const size_t passo = 20 * 1024 * 1024; // 20 MB
+        const size_t passo = 20 * 1024 * 1024; // 20 MB por iteração
 
+        // Loop dentro do processo filho para adicionar memória
         while (true) {
+            // Aloca um bloco de 'passo' bytes.
             void* b = malloc(passo);
-            if (!b) break; // malloc falhou → limite atingido sem OOM kill
+            if (!b) break; // Se malloc falhar, interrompe-se. Indica falha de alocação sem kill.
 
-            memset(b, 0, passo); // força commit físico da memória
+            memset(b, 0, passo); // Escreve zero em todos os bytes do bloco recém alocado.
 
-            blocos.push_back(b);
-            total += passo;
+            blocos.push_back(b); // Armazena o ponteiro do bloco recém-alocado no vetor blocos
+            total += passo; // Aumenta a contagem de memória que o processo tentou alocar
 
+            // Lê o uso de memória do cgroup
             auto mem = mgr.readMemoryUsage(cg);
 
+            // Imprime quanto o processo tentou alocar no total
             std::cout << "Alocado: " << (total / (1024 * 1024))
-                      << " MB | memory.current=" << mem["memory.current"]
-                      << "\n";
+                << " MB | memory.current=" << mem["memory.current"]
+                << "\n";
 
+            // Pequena pausa para evitar flooding e permitir ao kernel atualizar eventos
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 
-        exit(0); // Se terminar normalmente (sem OOM kill)
+        exit(0);
     }
 
     // === PAI ===
     int status;
-    waitpid(pid, &status, 0);
+    waitpid(pid, &status, 0); // Espera o filho terminar (por exit ou por sinal)
 
-    // Mostrar como o processo terminou 
+    // Mostra como o processo terminou:
+    // - WIFSIGNALED(status) -> terminou por sinal (ex: SIGKILL = 9)
+    // - WIFEXITED(status)   -> saiu normalmente com exit code
     if (WIFSIGNALED(status)) {
         int sig = WTERMSIG(status);
-        std::cout << "\n[Diagnóstico] Processo filho terminou por sinal: "
-                  << sig << "\n";
+        std::cout << "\n[Diagnóstico] Processo filho terminou por sinal: " << sig << "\n";
         if (sig == SIGKILL) {
+            // SIGKILL (9) é enviado pelo kernel quando o processo é morto imediatamente
             std::cout << "[Diagnóstico] Provável OOM killer atuou.\n";
         }
-    } else if (WIFEXITED(status)) {
-        std::cout << "\n[Diagnóstico] Processo terminou normalmente (exit="
-                  << WEXITSTATUS(status) << ").\n";
+    }
+    else if (WIFEXITED(status)) {
+        std::cout << "\n[Diagnóstico] Processo terminou normalmente (exit=" << WEXITSTATUS(status) << ").\n";
     }
 
     // Ler memory.events
+    // memory.events é o arquivo que contém contadores de eventos relacionados à memória para o cgroup (ex.: "oom", "oom_kill", "high", etc)
     size_t oom = 0, oom_kill = 0, high = 0;
     {
-        std::ifstream fe(this->basePath + cg + "/memory.events");
+        std::ifstream fe(this->basePath + cg + "/memory.events"); // Abre o arquivo para leitura de memory.events
         std::string k;
         size_t v;
-        while (fe >> k >> v) {
-            if (k == "oom")      oom = v;
-            if (k == "oom_kill") oom_kill = v;
-            if (k == "high")     high = v;
+        // Loop que percorre cada elemento (key -> value) do arquivo 
+        while (fe >> k >> v) { // Percorre os elementos e se são os que são buscados (oom, oom_kill, high)
+            if (k == "oom")      oom = v;      // número de eventos OOM
+            if (k == "oom_kill") oom_kill = v; // número de kills efetivos pelo OOM killer
+            if (k == "high")     high = v;     // número de violações do limite "soft" memory.high
         }
     }
 
     // Ler memory.peak
+    // memory.peak (quando disponível) é o pico de uso medido pelo kernel para o cgroup. Representa o máximo real que o kernel contabilizou
     size_t peak = 0;
     {
-        std::ifstream fp(this->basePath + cg + "/memory.peak");
-        if (fp) fp >> peak;
+        std::ifstream fp(this->basePath + cg + "/memory.peak"); // Abre o arquivo para leitura de memory.peak
+        if (fp) fp >> peak; 
     }
 
+    // Impressão final das métricas
     std::cout << "\n===== RESULTADO FINAL =====\n";
     std::cout << "Out Of Memory (OOM)           = " << oom << "\n";
     std::cout << "Out Of Memory Kill (OOM Kill) = " << oom_kill << "\n";
     std::cout << "Memory High                   = " << high << "\n";
     std::cout << "Máximo alcançado              = " << peak / (1024 * 1024) << " MB\n";
 }
+
