@@ -1,4 +1,12 @@
 # grupo7_RA3
+
+## Autores do projeto:
+### Caliel Carvalho de Medeiros
+### Felipe Coelho Ramos
+### Leonardo Soares de Mattos
+
+---
+
 ## Descrição do Projeto
 
 Este projeto implementa um sistema completo de profiling e análise de recursos para o ambiente Linux, capaz de monitorar, registrar e validar métricas de:
@@ -24,6 +32,8 @@ Este projeto também busca quantificar o custo (overhead) associado ao monitoram
 
 ## Guia de Instalação e Compilação (WSL/Ubuntu)
 Este guia rápido configura o ambiente de desenvolvimento Linux (WSL) no Windows, instala os compiladores C++ (g++/make) e compila o projeto resource-monitor.
+
+#### Requisitos e dependência para rodar o projeto de maneira efetiva:
 
 ##### Instalação do Ambiente WSL
 
@@ -91,6 +101,23 @@ Após reiniciar, o terminal do Ubuntu será aberto. Siga as instruções para cr
 >5. Experimento nº5 - Limitação de I/O
 
 >0. Voltar ao menu principal.
+
+---
+
+## Componentes do Projeto
+
+### Componente 1 - Resource Profiler
+O Resource Profiler é um dos três componentes principais do Resource Monitor, sendo responsável pelo monitoramento detalhado da utilização de recursos pelos processos do sistema. Sua função é coletar métricas em tempo real da CPU, memória, operações de entrada e saída e rede de cada processo monitorado.
+
+No monitoramento da CPU, o profiler obtém o tempo gasto pelo processo em modo usuário e modo kernel, calculando o percentual de utilização tanto por núcleo quanto do processo total, permitindo identificar cargas elevadas e picos de uso. No monitoramento de memória, ele captura informações como memória residente e memória virtual, possibilitando acompanhar o consumo ao longo da execução e detectar crescimento anômalo ou picos de uso. Para o monitoramento de operações de entrada e saída, número de syscalls de leitura e escrita, o profiler coleta bytes de escrita e leitura e com eles calcula taxas de leitura e escrita total e em disco. Por fim, no monitoramento de rede, ele registra a quantidade de bytes em fila para receber (Rx) e em fila para enviar (Tx), bem como a quantidade de sockets abertos.
+
+O Resource Profiler é implementado de forma modular e periódica, mantendo uma estrutura de dados interna com métricas atuais e históricas de cada processo. Em conjunto com os outros componentes do Resource Monitor, ele fornece uma visão abrangente do comportamento dos processos e da utilização de recursos do sistema, permitindo análise de desempenho, identificação de problemas e suporte a decisões de gerenciamento de recursos.
+
+### Componente 2 - Namespace Analyzer
+
+### Componente 3 - Control Group Manager
+
+---
 
 ## Metodologia de Testes
 ## Responsável - Caliel Carvalho de Medeiros
