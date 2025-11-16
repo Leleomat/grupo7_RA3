@@ -1,5 +1,5 @@
 # ============================================================
-# Makefile - Resource Monitor (Control Group Manager)
+# Makefile - Resource Monitor + Testes
 # ============================================================
 
 # Compilador e flags
@@ -11,48 +11,65 @@ SRC_DIR := src
 INC_DIR := include
 OBJ_DIR := build
 BIN_DIR := bin
+TEST_DIR := tests
 
-# Nome do executável
+# Nome do executável principal
 TARGET := $(BIN_DIR)/resource-monitor
 
-# Lista de arquivos-fonte e objetos
+# Arquivos fonte e objetos do programa principal
 SRC_FILES := $(wildcard $(SRC_DIR)/*.cpp)
 OBJ_FILES := $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SRC_FILES))
+
+# Arquivos de teste e executáveis correspondentes
+TEST_SOURCES := $(wildcard $(TEST_DIR)/*.cpp)
+TEST_EXECUTABLES := $(patsubst $(TEST_DIR)/%.cpp,$(BIN_DIR)/%,$(TEST_SOURCES))
 
 # ============================================================
 # Regras principais
 # ============================================================
 
-# Regra padrão
-all: $(TARGET)
+all: $(TARGET) $(TEST_EXECUTABLES)
 
-# Como gerar o binário final
+# Binário principal
 $(TARGET): $(OBJ_FILES)
 	@mkdir -p $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) $^ -o $@
-	@echo "✅ Build concluído: $(TARGET)"
+	@echo "Build concluído: $(TARGET)"
 
-# Como gerar cada arquivo .o
+# Arquivos .o do programa principal
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 	@mkdir -p $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
-	@echo "🔧 Compilando: $<"
+	@echo "Compilando: $<"
+
+# ============================================================
+# Compilação dos testes
+# ============================================================
+
+# Cada teste gera um executável próprio
+$(BIN_DIR)/%: $(TEST_DIR)/%.cpp
+	@mkdir -p $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) $< -o $@
+	@echo "Build do teste concluído: $@"
 
 # ============================================================
 # Regras auxiliares
 # ============================================================
 
-# Limpar arquivos compilados
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
-	@echo "🧹 Limpeza concluída."
+	@echo "Limpeza concluída."
 
-# Rebuild total
 rebuild: clean all
 
-# Executar o programa (requer sudo para cgroups)
 run: all
 	sudo $(TARGET)
+
+run-tests: all
+	@for exe in $(TEST_EXECUTABLES); do \
+		echo "Executando $$exe"; \
+		./$$exe; \
+	done
 
 # ============================================================
 # Fim do Makefile
