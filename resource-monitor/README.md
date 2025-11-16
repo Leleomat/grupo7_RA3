@@ -1,9 +1,11 @@
 # grupo7_RA3
 
+---
+
 ## Autores do projeto:
-### Caliel Carvalho de Medeiros
-### Felipe Coelho Ramos
-### Leonardo Soares de Mattos
+### - Caliel Carvalho de Medeiros
+### - Felipe Coelho Ramos
+### - Leonardo Soares de Mattos
 
 ---
 
@@ -25,10 +27,7 @@ Além disso, o sistema inclui uma série de experimentos práticos envolvendo pr
 
 Este projeto também busca quantificar o custo (overhead) associado ao monitoramento e à criação de ambientes isolados. E o objetivo principal é demonstrar, de forma prática e mensurável, como o kernel Linux provê isolamento, limitação de recursos e containerização — mecanismos que são a base de tecnologias como Docker, LXC, Kubernetes e containers de modo geral.
 
-### Autores do projeto:
-* Caliel Carvalho de Medeiros
-* Felipe Coelho Ramos
-* Leonardo Soares de Mattos
+---
 
 ## Guia de Instalação e Compilação (WSL/Ubuntu)
 Este guia rápido configura o ambiente de desenvolvimento Linux (WSL) no Windows, instala os compiladores C++ (g++/make) e compila o projeto resource-monitor.
@@ -62,8 +61,7 @@ Após reiniciar, o terminal do Ubuntu será aberto. Siga as instruções para cr
 3. Limpe a build e compile o código-fonte: `sudo make rebuild` ou faça separado: `sudo make clean` e depois `sudo make all`
 
 5. Execute o programa compilado: `sudo make run`
-
-1. 
+ 
 ##### Execução do projeto
 
 - Ao rodar o programa, o usuário é apresentado ao menu principal, que contém as opções:
@@ -74,9 +72,9 @@ Após reiniciar, o terminal do Ubuntu será aberto. Siga as instruções para cr
 
 >0. Sair
 
-
-- A opção 1 gerencia os CGroups
-- A opção 2 abre um sub-menu com opções relacionadas aos namespaces:
+- A opção 0 do menu principal encerra e sai do programa.
+- A opção 1 do menu principal gerencia os CGroups.
+- A opção 2 do menu principal abre um sub-menu com opções relacionadas aos namespaces:
 >1. Listar namespaces de um processo
 >2. Comparar namespaces entre dois processos
 >3. Procurar processos em um namespace especifico
@@ -84,8 +82,8 @@ Após reiniciar, o terminal do Ubuntu será aberto. Siga as instruções para cr
 
 >0. Voltar ao menu inicial
 
-- A opção 3 executa o Perfilador de Recursos
-- A opção 4 abre um sub-menu com opções relacionadas aos experimentos:
+- A opção 3 do menu principal executa o Perfilador de Recursos.
+- A opção 4 do menu principal abre um sub-menu com opções relacionadas aos experimentos:
 > CGROUP 
 
 >1. Experimento nº3 – Throttling de CPU
@@ -114,6 +112,23 @@ No monitoramento da CPU, o profiler obtém o tempo gasto pelo processo em modo u
 O Resource Profiler é implementado de forma modular e periódica, mantendo uma estrutura de dados interna com métricas atuais e históricas de cada processo. Em conjunto com os outros componentes do Resource Monitor, ele fornece uma visão abrangente do comportamento dos processos e da utilização de recursos do sistema, permitindo análise de desempenho, identificação de problemas e suporte a decisões de gerenciamento de recursos.
 
 ### Componente 2 - Namespace Analyzer
+O Namespace Analyzer é o componente focado na observação e diagnóstico das camadas de isolamento do kernel Linux. Sua principal função é inspecionar o filesystem /proc para identificar, listar e comparar os namespaces (como PID, NET, MNT, etc.) aos quais os processos em execução pertencem.
+
+O Namespace Analyzer fornece a visibilidade necessária para validar o isolamento e entender como diferentes processos "enxergam" o sistema. Ele é essencial para demonstrar na prática como funcionam os ambientes de containerização.
+
+O módulo implementa suas funcionalidades através da leitura e processamento dos links simbólicos de namespaces localizados em /proc/[pid]/ns/. As principais capacidades incluem:
+
+#### Listagem de Namespaces de um Processo
+Dado um PID, o analisador lê o diretório /proc/[PID]/ns e exibe os números de inode únicos (index node é o número de identificação único que armazena todas as informações importantes (metadados) sobre o arquivo, exceto seu nome e seu conteúdo) para cada tipo de namespace (pid, net, mnt, uts, ipc, user, cgroup), permitindo uma "impressão digital" do seu ambiente de isolamento.
+
+#### Comparação de Isolamento entre Processos
+Permite ao usuário inserir dois PIDs. O analisador então compara os inodes de namespace de ambos, informando quais namespaces são compartilhados e quais são distintos. Esta é uma ferramenta poderosa para verificar se dois processos estão, de fato, no mesmo "container" ou em ambientes isolados.
+
+#### Busca por Processos em um Namespace
+O usuário pode fornecer um ID (inode) de namespace específico, e o analisador varre o diretório /proc para encontrar todos os outros processos que estão atualmente associados a esse mesmo namespace.
+
+#### Relatório Geral do Sistema
+Gera um relatório completo de todos os namespaces únicos ativos no sistema. Ele agrupa os processos por namespaces idênticos e informa quantos processos existem em cada "bolha" de isolamento, fornecendo uma visão macro de como o sistema está compartimentado (como demonstrado no Experimento 2).
 
 ### Componente 3 - Control Group Manager
 O Control Group Manager (CGroupManager) é o componente do Resource Monitor responsável por manipular diretamente os cgroups v2 do Linux para controle e limitação de recursos dos processos monitorados. Ele permite criar grupos de controle, aplicar limites de CPU e memória, mover processos entre cgroups e coletar métricas internas fornecidas pelo kernel.
@@ -145,10 +160,11 @@ O módulo também implementa rotinas de leitura das estatísticas expostas pelo 
 Arquivos adicionais como memory.events e memory.peak são utilizados nos experimentos.
 
 Essas funções retornam mapas e estruturas com valores numéricos que permitem análises gerais e comparações entre limites aplicados e comportamento real do processo.
+
 ---
 
 ## Metodologia de Testes
-## Responsável - Caliel Carvalho de Medeiros
+#### Responsável - Caliel Carvalho de Medeiros
 Para rodar os testes compile o projeto com o makefile e rode cada executável separadamente, através do uso do bash, exemplo: sudo ./teste_cpu.
 
 ### Teste de CPU
@@ -191,6 +207,8 @@ O teste de I/O avalia a precisão na medição de bytes escritos e lidos. O prog
 ![alt text](docs/htopIO.png)
 
 Com base na análise das taxas pelo profiler e o htop, a taxa de escrita em disco total ficou constante em por volta de 76 kiB/s, enquanto htop e o profiler não detectaram leitura em disco devido ao cache, o profiler conseguiu capturar uma taxa de leitura lógica de 133.316 Mb/s. O comportamento é esperado pois as threads escrevem 100 bytes cada em ciclos de 5ms, sendo o que o número de threads é num_cores/2. Isso gera uma taxa de escrita constante, já a alta taxa de leitura vem do fato que o tamanho do arquivo aumenta a cada escrita, o que faz com seja o arquivo seja lido várias vezes em um segundo, enquanto cresce proporcionalmente. Os resultados são coerentes.
+
+---
 
 ## Experimentos
 
@@ -480,13 +498,16 @@ O objetivo era verificar a precisão da limitação de I/O e avaliar o impacto n
 
 ---
 
-Funcionalidades Extras (Bônus) implementadas: 
+### Funcionalidades Extras (Bônus) implementadas: 
 - Código Excepcionalmente bem comentado (+10)
 - Suporte a cgroup v2 (unified hierarchy) (+5)
 
-Observações:
+---
+
+### _Observações:_
 - A compilação ocorreu sem warnings (`-Wall -Wextra`).
 - O usuário Leleomat (Leonardo) é o dono do repositório e quem gerenciou os Pull Requests, por isso ele tem alguns commits realizados diretamente na Main, sejam commits iniciais gerais, ou de ajuste na Main de arquivos/pastas que foram enviados para ela e não deveriam ter sido, mantendo a integridade do projeto.
 - Os contribuidores são somente os três integrantes citados no início deste README, se por ventura aparecer algum contribuidor chamado "root", somos nós, pois isso ocorreu ao utilizar comandos sudo com o git, o que ocasionou o surgimento do "root". 
+- A estrutura sugerida do trabalho é para quatro alunos, como o projeto foi realizado por três alunos, a separação foi um pouco difernete, priorizando a divisão dos três componentes, um para cada um, e estruturas como documentação separadas para os três se ajudarem. O Componente 1 teve como principal desenvolvedor o Caliel Carvalho de Medeiros, o Componente 2 teve como seu principal desenvolvedor o Leonardo Soares de Mattos, e por fim o Componente 3 teve como seu principal desenvolvedor o Felipe Coelho Ramos. 
 - Sobre a estrutura do projeto, temos os arquivos .py e .sh, porém como não foram necessárias suas utilizações, os arquivos existem e estão no projeto, porém vazios.
 - Este projeto foi desenvolvido para a disciplina de Sistemas de Computação (PUCPR).

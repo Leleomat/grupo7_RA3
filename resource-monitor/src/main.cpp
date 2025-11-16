@@ -174,7 +174,14 @@ void executarExperimentos() {
 		std::cout << "\033[0m";
 		std::cin >> sub;
 
-		if (sub == 1) {
+		if (std::cin.fail()) {
+			std::cin.clear(); // Limpa a entrada
+			std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // Limpa o buffer de entrada
+			std::cerr << "Opção Inválida. Por favor, digite apenas números válidos.\n"; // Mostra mensagem ao usuário
+			sub = -1;
+			continue;
+		}
+		else if (sub == 1) {
 			manager.runCpuThrottlingExperiment();
 		}
 		else if (sub == 2) {
@@ -192,7 +199,6 @@ void executarExperimentos() {
 		else if (sub != 0) {
 			std::cout << "Opção inválida.\n";
 		}
-
 	} while (sub != 0);
 }
 
@@ -717,7 +723,15 @@ void namespaceAnalyzer() {
 		std::cout << "\033[0m"; // Reseta as cores para a entrada do usuário.
 		std::cin >> sub; // Lê a escolha do usuário e armazena em 'sub'.
 
-		if (sub == 1) { // Se o usuário escolheu '1'
+		if (std::cin.fail()) {
+			std::cin.clear(); // Limpa a entrada
+			std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // Limpa o buffer de entrada
+			std::cerr << "Opção Inválida. Por favor, digite apenas números válidos.\n"; // Mostra mensagem ao usuário
+			sub = -1;
+			continue;
+		}
+
+		else if (sub == 1) { // Se o usuário escolheu '1'
 			// A função 'escolherPID' mostra uma lista de processos e retorna o PID escolhido pelo usuário
 			int pid = escolherPID();
 			listNamespaces(pid); // Chama a função para listar os namespaces do PID escolhido.
@@ -725,19 +739,46 @@ void namespaceAnalyzer() {
 
 		else if (sub == 2) { // Se o usuário escolheu '2'
 			// A função 'listarProcessos' retorna um vetor ou lista de processos e seus nomes
-			auto processos = listarProcessos();
+			while(true) {
+				auto processos = listarProcessos();
 
-			// Imprime um cabeçalho para a lista de processos
-			std::cout << "\n\033[1;33m=================== Processos disponiveis ==================\033[0m\n";
-			// Itera sobre a lista de processos e imprime o PID e o nome de cada um.
-			for (const auto& p : processos) {
-				std::cout << "PID: " << std::left << std::setw(25) << p.pid << "\tNome: " << p.name << "\n";
+				// Imprime um cabeçalho para a lista de processos
+				std::cout << "\n\033[1;33m=================== Processos disponiveis ==================\033[0m\n";
+				// Itera sobre a lista de processos e imprime o PID e o nome de cada um.
+				for (const auto& p : processos) {
+					std::cout << "PID: " << std::left << std::setw(25) << p.pid << "\tNome: " << p.name << "\n";
+				}
+
+				int pid1, pid2; // Variáveis para armazenar os dois PIDs a comparar.
+				std::cout << "\nDigite os dois PIDs separados por espaço (ou '0 0' para voltar): ";
+
+				// Lê a linha inteira de uma vez
+				std::string linha_input;
+				std::getline(std::cin, linha_input);
+
+				// Criar um "stream" a partir dessa linha
+				std::stringstream ss(linha_input);
+
+				// Tentar extrair os PIDs e verificar se há lixo no final
+				char lixo_extra;
+
+				// Tenta ler pid1 e tenta ler pid2, falha ao tentar ler lixo extra
+				if (ss >> pid1 && ss >> pid2 && !(ss >> lixo_extra)) {
+					// Checa se o usuário quer voltar
+					if (pid1 == 0 && pid2 == 0) {
+						break; // Sai do 'while(true)' e volta ao menu principal
+					}
+					compareNamespaces(pid1, pid2);
+				}
+				else {
+					// Falha se:
+					// - O usuário digitou letras (ex: 'a b')
+					// - O usuário digitou só um número (ex: '-1')
+					// - O usuário digitou mais que dois números (ex: '1 2 3')
+					// - O usuário digitou números + lixo (ex: '1 2 abc')
+					std::cerr << "Opção Inválida. Por favor, digite apenas dois números válidos.\n";
+				}
 			}
-
-			int pid1, pid2; // Variáveis para armazenar os dois PIDs a comparar.
-			std::cout << "\nDigite os dois PIDs separados por espaço: ";
-			std::cin >> pid1 >> pid2; // Lê os dois PIDs.
-			compareNamespaces(pid1, pid2); // Chama a função de comparação.
 		}
 
 		else if (sub == 3) { // Se o usuário escolheu '3'
@@ -826,8 +867,17 @@ int main() {
 		std::cout << " 4. Executar Experimentos\n";
 		std::cout << " 0. Sair\n";
 		std::cout << " Escolha: ";
-		std::cin >> opcao; // Lê a escolha do usuário.
-		std::cout << "\033[0m"; // Reseta as cores.
+		std::cout << "\033[0m"; // Reseta as cores
+
+		// Tenta ler o 'int'
+		if (!(std::cin >> opcao)) { // Se a leitura falhar
+			std::cerr << "Opção Inválida. Por favor, digite apenas números válidos.\n";
+			std::cin.clear(); // Limpa o "estado de erro" do cin
+			std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // Limpa o buffer de entrada
+			// Força 'opcao' a ter um valor que não seja 0, para que o 'while(opcao != 0)' não falhe.
+			opcao = -1;
+			continue; // Pula para a próxima iteração do loop
+		}
 
 		switch (opcao) {
 		case 1: // Se 'opcao' for 1
@@ -853,7 +903,7 @@ int main() {
 			break; // Sai do 'switch'.
 
 		default: // Se 'opcao' não for nenhuma das anteriores
-			std::cout << "Opção inválida!\n"; // Informa o usuário.
+			std::cout << "Opção inválida. Tente Novamente\n"; // Informa o usuário.
 		}
 
 	} while (opcao != 0); // O loop continua enquanto 'opcao' for diferente de 0.

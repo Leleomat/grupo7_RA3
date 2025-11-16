@@ -73,7 +73,7 @@ resource-monitor/
 - `compareNamespaces(int pid1, int pid2)`: Implementa o requisito "Comparar namespaces entre dois processos".
 - `findProcessesInNamespace(...)`: Implementa o requisito "Encontrar processos em um namespace específico".
 - `reportSystemNamespaces()`, `reportProcessCountsPerNamespace()`, `gerarRelatorioGeralCompleto()`: Implementam os requisitos de "Gerar relatório de namespaces do sistema" e reportar o "Número de processos por namespace no sistema".
-- `executarExperimentoIsolamento()`: Função de alto nível que orquestra o Experimento 2  , usando as outras funções para "Validar efetividade do isolamento" e "Medir tempo de criação"
+- `executarExperimentoIsolamento()`: Função de alto nível que orquestra o Experimento 2, usando as outras funções para "Validar efetividade do isolamento" e "Medir tempo de criação".
 
 ### include/cgroup.h
 - **Responsabilidade:** Encapsular toda a lógica de manipulação e leitura de _Control Groups_ (cgroups). Diferente do `namespace.h`, este módulo é orientado a objetos (com a classe `CGroupManager`), tratando um _cgroup_ como um recurso a ser gerenciado. Ele interage com o filesystem `/sys/fs/cgroup/`.
