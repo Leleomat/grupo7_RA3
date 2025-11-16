@@ -116,7 +116,35 @@ O Resource Profiler é implementado de forma modular e periódica, mantendo uma 
 ### Componente 2 - Namespace Analyzer
 
 ### Componente 3 - Control Group Manager
+O Control Group Manager (CGroupManager) é o componente do Resource Monitor responsável por manipular diretamente os cgroups v2 do Linux para controle e limitação de recursos dos processos monitorados. Ele permite criar grupos de controle, aplicar limites de CPU e memória, mover processos entre cgroups e coletar métricas internas fornecidas pelo kernel.
 
+Esse componente complementa o Resource Profiler e o Namespace Analyzer ao oferecer mecanismos ativos de controle, não apenas observação, possibilitando a construção de experimentos, restrições e políticas de isolamento de recursos.
+
+#### Criação e gerenciamento de cgroups
+
+O módulo permite a criação dinâmica de cgroups dentro do diretório raiz do sistema (ex.: /sys/fs/cgroup/). A função createCGroup() cria um novo diretório e habilita o controle de CPU, memória, IO e pids para subgrupos. Uma vez criado o cgroup, processos podem ser movidos para ele através da função moveProcessToCGroup(), que escreve o PID no arquivo cgroup.procs, garantindo que o kernel passe a contabilizar e aplicar limites ao processo.
+
+#### Aplicação de limites de CPU e memória
+
+O Control Group Manager implementa mecanismos completos de limitação de recursos:
+
+* CPU: A função setCpuLimit() escreve valores no arquivo cpu.max, permitindo definir cotas em número de “cores equivalentes”. Por exemplo, 0.5 corresponde a 50% de um núcleo, enquanto valores negativos representam ausência de limite. O código converte esta fração em períodos e quantas de tempo (quota/period) conforme padrão do kernel.
+
+* Memória: A função setMemoryLimit() escreve diretamente em memory.max, configurando um limite rígido para o uso de memória física pelo cgroup. Caso o processo extrapole esse limite, o kernel pode bloquear novas alocações ou acionar o OOM Killer.
+
+#### Coleta de métricas internas do cgroup
+
+O módulo também implementa rotinas de leitura das estatísticas expostas pelo kernel dentro dos arquivos:
+
+* cpu.stat: tempo total de CPU, períodos de throttling, etc.
+
+* memory.current: uso atual de memória.
+
+* io.stat: estatísticas de leitura e escrita por dispositivo.
+
+Arquivos adicionais como memory.events e memory.peak são utilizados nos experimentos.
+
+Essas funções retornam mapas e estruturas com valores numéricos que permitem análises gerais e comparações entre limites aplicados e comportamento real do processo.
 ---
 
 ## Metodologia de Testes
@@ -243,18 +271,162 @@ O experimento concluiu com sucesso que os namespaces são uma ferramenta eficaz 
 ### Experimento 3 - Throttling de CPU - Felipe Coelho Ramos
 
 ### Condições
+O objetivo deste experimento foi validar o funcionamento do controle de CPU via cgroups v2 utilizando limites de CPU expressos em "núcleos lógicos" (cores), tais como 0.25, 0.5, 1.0 e 2.0 cores. O experimento buscou:
+
+* Verificar se o throttling aplicado pelo kernel corresponde de fato ao limite configurado;
+
+* Medir a porcentagem real de CPU consumida pelo processo restrito;
+
+* Avaliar o desvio percentual entre o valor esperado e o medido;
+
+* Observar o efeito do limite no throughput do processo CPU-bound.
+
+As medições foram realizadas em um ambiente Linux com suporte a cgroup v2 (unified hierarchy), garantindo acesso aos arquivos:
+
+* cpu.max — configuração do limite;
+
+* cpu.stat — métricas como usage_usec;
+
+* /proc/<pid>/stat — usado como proxy de "iterações" via somatório de utime+stime.
+
+O processo de carga consistiu em um loop while(true) com instrução asm volatile(""), garantindo ocupação contínua de CPU sem permitir otimizações do compilador.
 
 ### Execução
+O experimento foi dividido em três partes principais:
+
+#### Criação do cgroup e processo de carga
+Um cgroup único foi criado com nome baseado no timestamp.
+Um processo filho foi criado via fork() e imediatamente movido para esse cgroup.
+O filho executou um loop CPU-bound infinito, garantindo carga máxima.
+
+#### Aplicação dos limites de CPU e estabilização
+Para cada limite definido ({0.25, 0.5, 1.0, 2.0} cores):
+
+* Aplicou-se o valor em cpu.max através de setCpuLimit();
+
+* A execução aguardou 500 ms para estabilização do scheduler;
+
+Foram coletados valores iniciais de:
+
+* cpu.stat -> usage_usec;
+
+* utime + stime via /proc/<pid>/stat.
+
+#### Janela de medição e cálculos
+Cada limite foi medido ao longo de uma janela de 2 segundos, capturando:
+
+* Tempo real gasto pelo cgroup em CPU (cpu_used);
+
+* Percentual de CPU efetivamente obtido ( (cpu_used / window) * 100 );
+
+* Throughput aproximado (ticks por segundo do processo).
+
+Ao final, o pai calculou:
+
+* cpuPercent — CPU efetivamente obtida na janela;
+
+* expected — limite convertido para porcentagem (ex.: 0.25 → 25%);
+
+* desvio — relativo entre valor esperado e real;
+
+* throughput — proporcional ao volume de trabalho realizado dentro da janela.
+
+O processo filho foi encerrado via SIGKILL ao término do experimento.
 
 ### Resultado
+O experimento demonstrou claramente o comportamento esperado do mecanismo de throttling de CPU via cgroups v2 quando aplicado a um processo estritamente CPU-bound e single-threaded.
+
+Nos três primeiros níveis de limitação — correspondentes a frações e a exatamente um núcleo — o uso de CPU reportado pelo kernel permaneceu extraordinariamente próximo do valor teórico, com desvios praticamente desprezáveis. Isso indica que o cgroup aplicou o controle de CPU de forma altamente precisa, e que o processo foi rigidamente limitado conforme configurado. Além disso, o throughput interno acompanhou de maneira quase linear as mudanças no limite, o que reforça o comportamento determinístico do workload usado no teste.
+
+Ao elevar o limite para um valor superior à capacidade real de paralelização do processo, o experimento revelou uma característica importante: mesmo que o cgroup permita o uso de múltiplos núcleos, um processo single-thread não consegue aproveitar limites acima de um núcleo lógico. Por isso, mesmo com o aumento do limite nominal, o uso medido permaneceu próximo da capacidade máxima daquele único thread. Isso resultou em um desvio acentuado em relação ao valor esperado, não por falha do mecanismo de cgroups, mas por limitações do próprio workload.
+
+Outro ponto significativo é que o throughput permaneceu praticamente estável ao ultrapassar o nível equivalente a um núcleo, mostrando que o processo atingiu sua capacidade máxima de execução. Esse comportamento é consistente com workloads não paralelizáveis — aumentar o limite não aumenta o desempenho quando o gargalo é o modelo de execução, e não a disponibilidade de CPU.
+
+<img width="389" height="484" alt="image" src="https://github.com/user-attachments/assets/cb2ad138-1f81-48b7-ac71-fcb184c40f51" />
+
+O experimento confirma que cgroups v2 aplica corretamente o controle de CPU, com excelente previsibilidade e proporcionalidade entre o limite configurado e o comportamento observado.
 
 ### Experimento 4 - Limitação de Memória - Felipe Coelho Ramos
 
-### Condições
+#### Condições
+
+O experimento teve como objetivo estudar o comportamento do limitador de memória (memory.max) do cgroups v2, observando:
+
+* O ponto exato de disparo do OOM killer;
+
+* O uso máximo registrado (memory.peak);
+
+* O comportamento de eventos de memória registrados em memory.events.
+
+Para isso, foi definido um limite rígido de: 100 MB (memory.max = 100 * 1024 * 1024)
+
+O processo filho executou múltiplas alocações progressivas de memória em blocos de 20 MB, preenchendo cada bloco com zeros via memset(), garantindo a efetiva utilização física da memória e permitindo ao cgroup contabilizar corretamente o consumo.
 
 ### Execução
+O experimento ocorreu em duas fases:
+
+#### Fase do Filho (alocação de memória incremental)
+
+Dentro do cgroup recém-criado, o processo filho executou um loop contínuo:
+
+* Aloca 20 MB (malloc)
+
+* Preenche o bloco (memset)
+
+* Armazena o ponteiro para impedir desalocação
+
+* Soma ao total alocado
+
+* Lê memory.current do cgroup
+
+* Imprime progresso (“Alocado: X MB | memory.current=Y”)
+
+* Aguarda 100 ms para permitir atualização dos contadores
+
+Esse processo continuou até:
+
+* malloc() falhar, ou
+
+* o kernel enviar SIGKILL devido ao limite de memory.max.
+
+Essa abordagem demonstra claramente como a pressão de memória cresce e como o kernel reage.
+
+#### Fase do Pai (diagnóstico do término e leitura de eventos)
+
+Após o término do processo filho, o processo pai:
+
+* Verificou se o filho foi morto por sinal (especialmente SIGKILL);
+
+* Leu o arquivo memory.events, obtendo: oom — número de falhas de alocação, oom_kill — número de kills aplicados pelo kernel e high — violações do limite soft.
+
+* Leu o arquivo memory.peak, contendo o uso máximo real observado.
+
+Por fim, exibiu um resumo detalhado dos eventos e métricas coletadas.
+
+No experimento 4 memory.failcnt não foi utilizado simplesmente porque o kernel não fornece esse arquivo em cgroups v2.
+
+Logo, não há como coletar valores ou integrá-lo ao experimento. O equivalente funcional no modelo unificado é o arquivo memory.events, que contém:
+
+* high → número de vezes que o uso ultrapassou o limite "high"
+
+* max → número de vezes que o uso tentou ultrapassar memory.max
+
+* oom → ocorrências de OOM dentro do grupo
+
+* oom_kill → vezes em que um processo foi morto
 
 ### Resultado
+O Experimento 4 avaliou o comportamento de um processo submetido a um limite rígido de memória imposto pelo cgroup. Durante a execução, o processo continuou alocando blocos de memória crescentes até atingir o ponto em que novas alocações passaram a ultrapassar o limite configurado. A cada tentativa de alocação, o uso real registrado pelo kernel se aproximou rapidamente do teto permitido, permanecendo praticamente estável nesse valor nas últimas iterações.
+
+Assim que o processo excedeu sua capacidade de alocação dentro do cgroup, ele foi encerrado de forma abrupta por um sinal enviado pelo kernel. A saída diagnóstica indica claramente que o término ocorreu por uma intervenção do OOM Killer, mecanismo interno do kernel que elimina processos quando não é possível satisfazer novas solicitações de memória dentro das restrições do grupo.
+
+Os contadores finais confirmam esse comportamento: o cgroup registrou um evento de estouro de memória e um evento explícito de OOM Kill, evidenciando que o kernel tanto detectou a violação do limite quanto executou a ação correspondente. Não houve registro de eventos de pressão moderada (como o estado high), o que mostra que o processo não teve um período prolongado de degradação por falta de memória; em vez disso, ele atingiu o limite de forma súbita e foi encerrado rapidamente.
+
+O valor máximo observado no experimento coincide exatamente com o limite imposto ao cgroup, indicando que o kernel impediu qualquer avanço além do valor configurado — comportamento esperado em um cenário de limite rígido (memory.max). Isso mostra que o controle de memória do cgroup operou de forma precisa: permitiu uso até o teto e bloqueou imediatamente qualquer avanço adicional, resultando no encerramento do processo.
+
+<img width="465" height="233" alt="image" src="https://github.com/user-attachments/assets/a424a352-7243-4183-9701-cf6a6bb22104" />
+
+De forma geral, o experimento demonstra que o mecanismo de limitação de memória em cgroups v2 reage de maneira determinística e previsível: permite alocações até o limite, trava na fronteira e, diante de novas tentativas de alocar memória, aciona o OOM Killer sem transições intermediárias.
 
 ### Experimento 5 - Limitação de I/O - Caliel Carvalho de Medeiros
 
