@@ -196,67 +196,72 @@ void executarExperimentos() {
 	} while (sub != 0);
 }
 
+// Função que cria um processo do tipo IO e move para o cgroup.
+// Recebe como parâmetros o nome do cgroup e o objeto da classe CGroupManager
 pid_t createIOTestProcessAndMove(const std::string& cgName, CGroupManager& manager) {
-    pid_t pid = fork();
+    pid_t pid = fork(); // Cria um processo filho usando fork()
+    // Retorno: > 0 = PID do filho (no pai), 0 = esta no filho, < 0 = erro
 
+    // Verifica se o PID gerado do processo filho é menor que 0
     if (pid < 0) {
-        perror("fork");
-        return -1;
+        perror("fork"); // Imprime no stderr uma mensagem com o errno atual: "fork: <mensagem do sistema>"
+        return -1;      // Indica erro ao chamador retornando -1
     }
 
+    // Se pid == 0, esta no processo filho
     if (pid == 0) {
-        // ---- FILHO ----
-
-        // Redireciona stdout e stderr para /dev/null
-        int devNull = open("/dev/null", O_WRONLY);
-        if (devNull >= 0) {
-            dup2(devNull, STDOUT_FILENO);
-            dup2(devNull, STDERR_FILENO);
-            close(devNull);
+        // Redireciona stdout e stderr para /dev/null (evita poluir o terminal)
+        int devNull = open("/dev/null", O_WRONLY); // Abre /dev/null para escrita
+        if (devNull >= 0) {                        // Se open teve sucesso
+            dup2(devNull, STDOUT_FILENO);          // Faz stdout apontar para /dev/null
+            dup2(devNull, STDERR_FILENO);          // Faz stderr apontar para /dev/null
+            close(devNull);                        // Fecha o descritor original (dup2 criou duplicatas)
         }
 
-        const size_t SIZE = 1024 * 1024; // 1 MB
-        std::vector<char> buffer(SIZE, 'X');
+        const size_t SIZE = 1024 * 1024;          // Define o tamanho do bloco de escrita: 1 MB
+        std::vector<char> buffer(SIZE, 'X');      // Aloca e preenche um buffer de 1 MB com o caractere 'X'
 
+        // Abre (ou cria) o arquivo de teste em /tmp. O_TRUNC zera o arquivo ao abrir.
         int fd = open("/tmp/test_io_file", O_CREAT | O_WRONLY | O_TRUNC, 0644);
-        if (fd < 0) {
-            perror("open");
-            _exit(1);
+        if (fd < 0) {                              // Se falhou ao abrir/criar
+            perror("open");                        // Mostra erro
+            _exit(1);                              // Sai imediatamente do filho (sem handlers do pai)
         }
 
         // === Primeira escrita imediata (garante blkio na 1ª leitura) ===
-        ssize_t written = write(fd, buffer.data(), SIZE);
-        if (written < 0) {
-            perror("write");
-            close(fd);
-            _exit(1);
+        ssize_t written = write(fd, buffer.data(), SIZE); // Tenta escrever 1 MB no arquivo
+        if (written < 0) {                         // Se houve erro na escrita
+            perror("write");                       // Imprime motivo
+            close(fd);                             // Fecha descritor
+            _exit(1);                              // Sai do processo filho com código 1
         }
-        fsync(fd);
+        fsync(fd);                                 // Força a sincronização dos dados para o dispositivo (bloqueante)
 
         // === Loop 1MB/s ===
-        while (true) {
-            sleep(1);
-            written = write(fd, buffer.data(), SIZE);
-            if (written < 0) {
-                perror("write");
-                close(fd);
-                _exit(1);
+        while (true) {                             // Loop infinito: gera I/O continuamente
+            sleep(1);                              // Pausa 1 segundo (taxa aproximada de 1 MB/s)
+            written = write(fd, buffer.data(), SIZE); // Escreve mais 1 MB
+            if (written < 0) {                     // Se write retornou erro
+                perror("write");                   // Imprime erro
+                close(fd);                         // Fecha o descritor
+                _exit(1);                          // Sai do filho
             }
-            fsync(fd);
+            fsync(fd);                             // Sincroniza novamente (garante I/O físico)
         }
     }
 
-    // ---- PAI ----
+    // Código executado apenas no processo PAI 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    // Pequena pausa para dar tempo do filho criar o arquivo/começar a escrever antes de movê-lo ao cgroup
 
     try {
-        manager.moveProcessToCGroup(cgName, pid);
+        manager.moveProcessToCGroup(cgName, pid); // Move o PID do filho para o cgroup especificado
     }
     catch (const std::exception& ex) {
-        std::cerr << "Erro ao mover processo p/ cgroup: " << ex.what() << "\n";
+        std::cerr << "Erro ao mover processo p/ cgroup: " << ex.what() << "\n"; // Trata exceção lançada pelo manager
     }
 
-    return pid;
+    return pid; // Retorna o PID do processo filho ao chamador (no pai)
 }
 
 // Função que faz o gerenciado do cgroup no main
@@ -281,41 +286,51 @@ void cgroupManager() {
         return;
     }
 
-    std::cout << " 1. Escolher processo existente\n";
-    std::cout << " 2. Criar processo de teste de I/O\n";
-    std::cout << "Escolha: ";
+    int pid = -1; // Set do pid como -1 
+    int opc = 0; // Set da opção padrão como 0
+ 
+    // Validação se o usuário digitou 1 ou 2. Só sai do loop se digitar um valor válido
+    while (true) {
+        // Mostra opções ao usuário de qual tipo de processo deseja usar 
+        std::cout << " 1. Escolher processo existente\n";
+        std::cout << " 2. Criar processo de teste para I/O\n";
+        std::cout << " 0. Voltar ao menu principal.\n";
+        std::cout << "Escolha: ";
 
-    int opc;
-    std::cin >> opc;
+        std::cin >> opc; // Armazena a opção na variável de opção
 
-    int pid = -1;
+        // Se o input for inválido, caso seja letras
+        if (std::cin.fail()) {
+            std::cin.clear(); // Limpa a entrada
+            std::cin.ignore(10000, '\n'); // Descarta caracteres pendentes no buffer
+            std::cerr << "Entrada inválida. Digite 1 ou 2.\n\n"; // Mostra mensagem ao usuário
+            continue;
+        }
 
-    if (opc == 1) {
-        pid = escolherPID();
-        if (!manager.moveProcessToCGroup(cgroupName, pid)) {
-            std::cerr << "Falha ao mover o processo para o cgroup.\n";
+        if (opc == 1) { // Caso tenha digitado 1, o usuário que deve escolher o processo existente
+            pid = escolherPID(); // Chama a função de escolher o PID, que acessa a pasta /proc e lista os processos 
+            if (!manager.moveProcessToCGroup(cgroupName, pid)) { // Move o processo para o cgroup usando moveProcessToCGroup da classe CGroupManager
+                std::cerr << "Falha ao mover o processo para o cgroup.\n"; // Caso ocorra um erro mostra mensagem ao usuário
+                return;
+            }
+            std::cout << "Processo " << pid << " movido para " << cgroupName << ".\n"; // Se funcionou, mostra o PID que foi movido
+            break; // Sai do loop
+        }
+        else if (opc == 2) { // Caso tenha digitado 2, é criado um processo de IO e movido para o cgroup
+            pid = createIOTestProcessAndMove(cgroupName, manager); // Cria o processo IO e move para o cgroup
+            if (pid <= 0) { // Caso tenha retornado um PID <= 0 significa que deu erro
+                std::cerr << "Falha ao criar processo de I/O!\n"; // Mostra mensagem ao usuário
+                return;
+            }
+            break; // Sai do loop
+        }
+        else if (opc == 0) { // Caso tenha digitado 0, volta ao menu principal 
             return;
         }
-        std::cout << "Processo " << pid << " movido para " << cgroupName << ".\n";
-    }
-    else if (opc == 2) {
-        pid = createIOTestProcessAndMove(cgroupName, manager);
-        if (pid <= 0) {
-            std::cerr << "Falha ao criar processo de I/O!\n";
-            return;
+        else {
+            std::cerr << "Opção inválida. Digite 1 ou 2.\n\n"; // Se o usuário digitou algul número diferente de 1 ou 2 mostra mensagem
         }
     }
-    else {
-        std::cerr << "Opção inválida.\n";
-        return;
-    }
-
-    // Move o processo selecionado para o cgroup; se falhar, imprime erro e retorna.
-    if (!manager.moveProcessToCGroup(cgroupName, pid)) {
-        std::cerr << "Falha ao mover o processo para o cgroup.\n";
-        return;
-    }
-    std::cout << "Processo " << pid << " movido com sucesso para " << cgroupName << ".\n";
 
     // Lê do usuário o limite de CPU (em "núcleos" — valor float/double; -1 significa ilimitado).
     double cores; // Set da variável que recebe a quantidade de cores
@@ -390,62 +405,80 @@ void cgroupManager() {
 
         std::cout << "\nEstatísticas de BlkIO:\n";
 
+        // Armazena em blk a leitura de BlkIO usando a função da classe CGroupManager readBlkIOUsage()
         auto blk = manager.readBlkIOUsage(cgroupName);
 
-        if (blk.empty()) {
-            std::cout << "(sem atividade de I/O registrada)\n";
-        }
-        else {
-            for (const auto& entry : blk) {
+        bool encontrouAlgo = false;  // Marca se encontra alguma linha útil
 
-                // Se a linha é vazia (caso raro em alguns kernels), pula
-                if (entry.rbytes == 0 &&
-                    entry.wbytes == 0 &&
-                    entry.dbytes == 0 &&
-                    entry.rios == 0 &&
-                    entry.wios == 0 &&
-                    entry.dios == 0)
-                {
-                    continue;
-                }
+        // Loop que percorre cada entrada de blk
+        for (const auto& entry : blk) {
 
-                // Exibir nome do dispositivo
-                if (entry.major == 0 && entry.minor == 0)
-                    std::cout << "  Device Default\n";        // agregado de todos os discos
-                else
-                    std::cout << "  Device " << entry.major << ":" << entry.minor << "\n";
-
-                // Formatação de bytes
-                auto fmtBytes = [](uint64_t b) {
-                    const char* suf[] = { "B", "KB", "MB", "GB", "TB" };
-                    int i = 0;
-                    double v = static_cast<double>(b);
-                    while (v >= 1024.0 && i < 4) {
-                        v /= 1024.0;
-                        i++;
-                    }
-                    std::ostringstream oss;
-                    oss << std::fixed << std::setprecision(2) << v << " " << suf[i];
-                    return oss.str();
-                    };
-
-                std::cout << "    Read:    " << fmtBytes(entry.rbytes)
-                    << "  (" << entry.rios << " ops)\n";
-
-                std::cout << "    Write:   " << fmtBytes(entry.wbytes)
-                    << "  (" << entry.wios << " ops)\n";
-
-                std::cout << "    Discard: " << fmtBytes(entry.dbytes)
-                    << "  (" << entry.dios << " ops)\n\n";
+            // Se todas as métricas forem zero, segue para a próxima leitura
+            if (entry.rbytes == 0 && 
+                entry.wbytes == 0 &&
+                entry.dbytes == 0 &&
+                entry.rios == 0 &&
+                entry.wios == 0 &&
+                entry.dios == 0)
+            {
+                continue;
             }
+
+            // Encontrou alguma informação de IO, marcando encontrouAlgo como true
+            encontrouAlgo = true;
+
+            // Exibe o identificador do dispositivo (0:0 é usado como "Device Default")
+            if (entry.major == 0 && entry.minor == 0)
+                std::cout << "  Device Default\n";
+            else // Caso não seja um dispositivo padrão
+                std::cout << "  Device " << entry.major << ":" << entry.minor << "\n";
+
+            // Declaração de um lambda (função anônima) que recebe um uint64_t b (número de bytes) e retorna um sufixo
+            auto fmtBytes = [](uint64_t b) {
+                const char* suf[] = { "B", "KB", "MB", "GB", "TB" }; // Vetor de sufixos de unidade 
+                int i = 0; // Índice no array suf, começando em 0 (unidade "B").
+                double v = static_cast<double>(b); // Converte b para double para permitir divisões não inteiras e formatação com casas decimais.
+                while (v >= 1024.0 && i < 4) { // Loop que reduz v dividindo por 1024 enquanto ainda for grande o suficiente e enquanto não ultrapassar o último sufixo (TB)
+                    v /= 1024.0; // Divide v por 1024 — move para a próxima unidade(B → KB → MB → ...).
+                    i++; // Incrementa o índice para usar o próximo sufixo.
+                }
+                std::ostringstream oss; // Cria um stream de saída em string para montar o texto com formatação.
+                oss << std::fixed << std::setprecision(2) << v << " " << suf[i]; // Escreve v com formato fixo e 2 casas decimais, seguido de espaço e o sufixo correspondente.
+                return oss.str(); // Retorna a string gerada (ex.: "1.50 MB").
+            };
+
+            // Mostra na tela a quantidade de memória lida e a quantidade de operações de leitura realizadas
+            std::cout << "    Read:    " << fmtBytes(entry.rbytes)
+                << "  (" << entry.rios << " ops)\n";
+
+            // Mostra na tela a quantidade de memória escrita e a quantidade de operações de escrita realizadas
+            std::cout << "    Write:   " << fmtBytes(entry.wbytes)
+                << "  (" << entry.wios << " ops)\n";
+
+            // Mostra na tela a quantidade de memória descartada e a quantidade de operações de descarte realizadas
+            std::cout << "    Discard: " << fmtBytes(entry.dbytes)
+                << "  (" << entry.dios << " ops)\n\n";
         }
 
-        // A cada iteração aguarda 3 segundos antes de atualizar
+        // Verifica se não encontrou algo, mostrando mensagem que não encontrou IO nessa leitura
+        if (!encontrouAlgo) {
+            std::cout << "(nenhuma operação de I/O registrada até agora)\n";
+        }
+
+        // A cada iteração aguarda 2 segundos antes de atualizar
         sleep(2);
         numeroLeitura = numeroLeitura + 1; // Incrementa em 1 no numero da leitura 
     }
 
-    std::cout << "Monitoramento de cgroup encerrado.\n";
+    std::cout << "Monitoramento de cgroup encerrado.\n"; // Mostra mensagem final do relatório de CGroups
+
+    // Se o processo for de IO e ainda existir, finaliza
+    if (pid > 0 && kill(pid, 0) == 0 && opc == 2) {
+        std::cout << "Encerrando processo de teste de I/O (PID " << pid << ")...\n";
+        kill(pid, SIGKILL); // Mata o processo imediatamente
+        waitpid(pid, nullptr, 0); // Aguarda o processo finalizar
+        std::cout << "Processo finalizado.\n";
+    }
 }
 
 // =========================================
