@@ -271,10 +271,80 @@ O experimento concluiu com sucesso que os namespaces são uma ferramenta eficaz 
 ### Experimento 3 - Throttling de CPU - Felipe Coelho Ramos
 
 ### Condições
+O objetivo deste experimento foi validar o funcionamento do controle de CPU via cgroups v2 utilizando limites de CPU expressos em "núcleos lógicos" (cores), tais como 0.25, 0.5, 1.0 e 2.0 cores. O experimento buscou:
+
+* Verificar se o throttling aplicado pelo kernel corresponde de fato ao limite configurado;
+
+* Medir a porcentagem real de CPU consumida pelo processo restrito;
+
+* Avaliar o desvio percentual entre o valor esperado e o medido;
+
+* Observar o efeito do limite no throughput do processo CPU-bound.
+
+As medições foram realizadas em um ambiente Linux com suporte a cgroup v2 (unified hierarchy), garantindo acesso aos arquivos:
+
+* cpu.max — configuração do limite;
+
+* cpu.stat — métricas como usage_usec;
+
+* /proc/<pid>/stat — usado como proxy de "iterações" via somatório de utime+stime.
+
+O processo de carga consistiu em um loop while(true) com instrução asm volatile(""), garantindo ocupação contínua de CPU sem permitir otimizações do compilador.
 
 ### Execução
+O experimento foi dividido em três partes principais:
+
+#### Criação do cgroup e processo de carga
+Um cgroup único foi criado com nome baseado no timestamp.
+Um processo filho foi criado via fork() e imediatamente movido para esse cgroup.
+O filho executou um loop CPU-bound infinito, garantindo carga máxima.
+
+#### Aplicação dos limites de CPU e estabilização
+Para cada limite definido ({0.25, 0.5, 1.0, 2.0} cores):
+
+* Aplicou-se o valor em cpu.max através de setCpuLimit();
+
+* A execução aguardou 500 ms para estabilização do scheduler;
+
+Foram coletados valores iniciais de:
+
+* cpu.stat -> usage_usec;
+
+* utime + stime via /proc/<pid>/stat.
+
+#### Janela de medição e cálculos
+Cada limite foi medido ao longo de uma janela de 2 segundos, capturando:
+
+* Tempo real gasto pelo cgroup em CPU (cpu_used);
+
+* Percentual de CPU efetivamente obtido ( (cpu_used / window) * 100 );
+
+* Throughput aproximado (ticks por segundo do processo).
+
+Ao final, o pai calculou:
+
+* cpuPercent — CPU efetivamente obtida na janela;
+
+* expected — limite convertido para porcentagem (ex.: 0.25 → 25%);
+
+* desvio — relativo entre valor esperado e real;
+
+* throughput — proporcional ao volume de trabalho realizado dentro da janela.
+
+O processo filho foi encerrado via SIGKILL ao término do experimento.
 
 ### Resultado
+O experimento demonstrou claramente o comportamento esperado do mecanismo de throttling de CPU via cgroups v2 quando aplicado a um processo estritamente CPU-bound e single-threaded.
+
+Nos três primeiros níveis de limitação — correspondentes a frações e a exatamente um núcleo — o uso de CPU reportado pelo kernel permaneceu extraordinariamente próximo do valor teórico, com desvios praticamente desprezáveis. Isso indica que o cgroup aplicou o controle de CPU de forma altamente precisa, e que o processo foi rigidamente limitado conforme configurado. Além disso, o throughput interno acompanhou de maneira quase linear as mudanças no limite, o que reforça o comportamento determinístico do workload usado no teste.
+
+Ao elevar o limite para um valor superior à capacidade real de paralelização do processo, o experimento revelou uma característica importante: mesmo que o cgroup permita o uso de múltiplos núcleos, um processo single-thread não consegue aproveitar limites acima de um núcleo lógico. Por isso, mesmo com o aumento do limite nominal, o uso medido permaneceu próximo da capacidade máxima daquele único thread. Isso resultou em um desvio acentuado em relação ao valor esperado, não por falha do mecanismo de cgroups, mas por limitações do próprio workload.
+
+Outro ponto significativo é que o throughput permaneceu praticamente estável ao ultrapassar o nível equivalente a um núcleo, mostrando que o processo atingiu sua capacidade máxima de execução. Esse comportamento é consistente com workloads não paralelizáveis — aumentar o limite não aumenta o desempenho quando o gargalo é o modelo de execução, e não a disponibilidade de CPU.
+
+<img width="389" height="484" alt="image" src="https://github.com/user-attachments/assets/cb2ad138-1f81-48b7-ac71-fcb184c40f51" />
+
+O experimento confirma que cgroups v2 aplica corretamente o controle de CPU, com excelente previsibilidade e proporcionalidade entre o limite configurado e o comportamento observado.
 
 ### Experimento 4 - Limitação de Memória - Felipe Coelho Ramos
 
