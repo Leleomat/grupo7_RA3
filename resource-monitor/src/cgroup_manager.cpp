@@ -310,62 +310,136 @@ std::vector<BlkIOStats> CGroupManager::readBlkIOUsage(const std::string& name) {
     return list;
 }
 
+uint64_t CGroupManager::readIterationsFromChild(pid_t pid) {
+    std::string path = "/proc/" + std::to_string(pid) + "/stat";
+    std::ifstream f(path);
+    if (!f.is_open()) {
+        return 0;
+    }
+
+    std::string token;
+    std::vector<std::string> fields;
+
+    while (f >> token) {
+        fields.push_back(token);
+    }
+
+    if (fields.size() < 15) {
+        return 0;
+    }
+
+    uint64_t utime = std::stoull(fields[13]); // campo 14
+    uint64_t stime = std::stoull(fields[14]); // campo 15
+
+    return utime + stime;
+}
+
 // ===== Experimento 3: testar throttling de CPU =====
 void CGroupManager::runCpuThrottlingExperiment() {
-    std::string cg = "exp3_" + std::to_string(time(nullptr)); // nome único do cgroup usando timestamp
-    this->createCGroup(cg);                                  // cria o cgroup
+
+    std::string cg = "exp3_" + std::to_string(time(nullptr));
+    this->createCGroup(cg);
 
     std::cout << "\n===== EXPERIMENTO 3 — CPU THROTTLING =====\n";
 
-    pid_t pid = fork();                                      // cria um processo filho
-    if (pid < 0) {                                           // verifica erro no fork
+    pid_t pid = fork();
+    if (pid < 0) {
         std::cerr << "fork falhou\n";
-        return;                                              // aborta experimento se fork falhar
+        return;
     }
 
-    if (pid == 0) {                                          // === bloco do FILHO ===
-        CGroupManager mgr(this->basePath);                   // cria uma instância local para operar no mesmo basePath
-        mgr.moveProcessToCGroup(cg, getpid());               // move o próprio filho para o cgroup
+    // =====================================================================
+    // === FILHO ===
+    // =====================================================================
+    if (pid == 0) {
 
+        // mover o próprio processo para o cgroup
+        CGroupManager mgr(this->basePath);
+        mgr.moveProcessToCGroup(cg, getpid());
+
+        // processo CPU-bound (busy loop puro)
         while (true) {
-            asm volatile("" ::: "memory");                   // loop infinito ocupando CPU (busy spin)
+            asm volatile(""); // evita otimizações do compilador
         }
 
-        exit(0);                                             // unreachable (só fica como fallback)
+        exit(0); // nunca chega aqui
     }
 
-    // === bloco do PAI ===
-    std::vector<double> limites = { 0.25, 0.5, 1.0, 2.0 };    // limites que serão testados (em "cores")
+    // =====================================================================
+    // === PAI ===
+    // =====================================================================
+    std::vector<double> limites = { 0.25, 0.5, 1.0, 2.0 };
 
     for (double lim : limites) {
-        this->setCpuLimit(cg, lim);                          // aplica o limite no cgroup
 
-        auto t0 = std::chrono::high_resolution_clock::now();// marca tempo inicial
-        std::this_thread::sleep_for(std::chrono::seconds(2)); // espera 2 segundos (período de medição)
-        auto t1 = std::chrono::high_resolution_clock::now();// marca tempo final
+        // Aplicar limite
+        this->setCpuLimit(cg, lim);
 
-        double secs = std::chrono::duration<double>(t1 - t0).count(); // duração em segundos
+        // Deixar estabilizar
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-        auto stat = this->readCpuUsage(cg);                  // lê cpu.stat (mapa de métricas)
-        if (!stat.count("usage_usec")) {                     // valida se usage_usec existe
+        // -----------------------------------------------------------------
+        // LEITURA INICIAL (usage_usec + ticks do processo)
+        // -----------------------------------------------------------------
+
+        auto stat_before = this->readCpuUsage(cg);
+        if (!stat_before.count("usage_usec")) {
             std::cerr << "cpu.stat não contém usage_usec\n";
-            continue;                                       // pula essa iteração se não existir
+            continue;
         }
-        double usage_sec = stat["usage_usec"] / 1e6;         // uso de CPU em segundos (cpu.stat fornece microssegundos)
 
-        double cpuPercent = (usage_sec / secs) * 100.0;      // percentagem de CPU consumida no intervalo medido
-        double expected = lim * 100.0;                      // valor esperado (lim em núcleos * 100)
-        double desvio = ((cpuPercent - expected) / expected) * 100.0; // desvio percentual relativo
+        double usage_before = stat_before["usage_usec"] / 1e6; // micros → segundos
+        uint64_t ticks_before = this->readIterationsFromChild(pid);
+
+        auto t0 = std::chrono::high_resolution_clock::now();
+
+        // Janela de medição (2 segundos)
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+
+        auto t1 = std::chrono::high_resolution_clock::now();
+
+        // -----------------------------------------------------------------
+        // LEITURA FINAL
+        // -----------------------------------------------------------------
+
+        auto stat_after = this->readCpuUsage(cg);
+        double usage_after = stat_after["usage_usec"] / 1e6;
+
+        uint64_t ticks_after = this->readIterationsFromChild(pid);
+
+        // -----------------------------------------------------------------
+        // Cálculos de delta
+        // -----------------------------------------------------------------
+
+        double cpu_used = usage_after - usage_before;
+        double secs = std::chrono::duration<double>(t1 - t0).count();
+
+        // CPU efetiva (%) = (tempo de CPU usado / tempo de parede) * 100
+        double cpuPercent = (cpu_used / secs) * 100.0;
+
+        // Throughput em ticks/segundo
+        uint64_t ticks = ticks_after - ticks_before;
+        double throughput = ticks / secs;
+
+        // Cálculo do desvio
+        double expected = lim * 100.0;
+        double desvio = ((cpuPercent - expected) / expected) * 100.0;
+
+        // -----------------------------------------------------------------
+        // Imprimir resultados
+        // -----------------------------------------------------------------
 
         std::cout << "\n--- Limite: " << lim << " cores ---\n";
-        std::cout << "CPU medido: " << cpuPercent << "%\n";
-        std::cout << "CPU esperado: " << expected << "%\n";
-        std::cout << "Desvio: " << desvio << "%\n";
+        std::cout << "CPU medido:       " << cpuPercent << "%\n";
+        std::cout << "CPU esperado:     " << expected << "%\n";
+        std::cout << "Desvio:           " << desvio << "%\n";
+        std::cout << "Throughput (ticks/s): " << throughput << "\n";
     }
 
-    kill(pid, SIGKILL);                                     // mata o processo filho (força)
+    // Encerrar filho
+    kill(pid, SIGKILL);
     int status = 0;
-    waitpid(pid, &status, 0);                               // espera o filho terminar e recolhe status
+    waitpid(pid, &status, 0);
 }
 
 // ===== Experimento 4: testar limite de memória =====
