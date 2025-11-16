@@ -322,7 +322,6 @@ void limitacaoIO() {
 
             auto inicioIO = steady_clock::now();         // marca tempo antes do read
             ssize_t lidos = read(fdFonte, buffer.data(), maximoLeitura); // faz a leitura
-            auto fimRead = steady_clock::now();          // marca tempo após o read
 
             if (lidos < 0) {                             // erro de leitura
                 perror("read");                          // log de erro
@@ -414,7 +413,6 @@ void limitacaoIO() {
     uint64_t ultimoBytesMov = 0;             // último valor de bytes recebido do filho
 
     auto inicioPai = steady_clock::now();    // instante de início para o pai
-    bool filhoAcabou = false;                // flag para saber quando terminou
 
     while (true) {
         fd_set conjuntoLeitura;               // conjunto para select
@@ -441,8 +439,7 @@ void limitacaoIO() {
 
         int status = 0;                       // status para waitpid
         pid_t r = waitpid(idFilho, &status, WNOHANG); // verifica se filho terminou sem bloquear
-        if (r == idFilho) {                   // se filho finalizou
-            filhoAcabou = true;               // marca flag
+        if (r == idFilho) {                   // se filho finalizou           // marca flag
             break;                            // sai do loop
         }
     }
