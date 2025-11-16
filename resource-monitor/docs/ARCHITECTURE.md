@@ -158,6 +158,8 @@ Os scripts em `tests/` geram cargas controladas para validar cada métrica:
 - `test_memory.cpp` → aloca blocos grandes e mantém alocação.
 - `test_io.cpp` → escreve/ler arquivos para gerar I/O contínuo.
 
+Os demais experimentos são melhores explicados e comentados no README.
+
 ---
 
 ## 6. Diagrama Rápido (ASCII)
@@ -176,3 +178,4 @@ Os scripts em `tests/` geram cargas controladas para validar cada métrica:
 
 
 ---
+
