@@ -220,65 +220,80 @@ std::map<std::string, size_t> CGroupManager::readMemoryUsage(const std::string& 
     return stats;
 }
 
+// Função da clsse do CGroupManager que faz a leitura de BlkIOUsage. Recebe como parâmetro o nome do cgroup
 std::vector<BlkIOStats> CGroupManager::readBlkIOUsage(const std::string& name) {
+    // Abre o arquivo io.stat do cgroup especificado
     std::ifstream f(basePath + name + "/io.stat");
+
+    // Vetor que vai armazenar todas as estatísticas encontradas
     std::vector<BlkIOStats> list;
 
+    // Caso não consiga abrir o arquivo, retorna lista vazia
     if (!f.is_open()) {
-        std::cerr << "Falha ao abrir io.stat\n";
+        std::cerr << "Falha ao abrir io.stat\n"; // Mostra mensagem ao usuário 
         return list;
     }
 
-    list.reserve(8); // geralmente poucos dispositivos por cgroup
+    // Reserva espaço para algumas entradas (otimização)
+    list.reserve(8); // Geralmente há poucos dispositivos por cgroup
 
-    std::string line;
+    std::string line; 
+
+    // Lê o arquivo linha por linha
     while (std::getline(f, line)) {
-
+        // Ignora linhas vazias, indo para a próxima interação
         if (line.empty())
             continue;
 
+        // Transforma a linha em um stream para extrair tokens
         std::istringstream iss(line);
 
+        // Estrutura que vai armazenar os valores da linha atual. Declarada no arquivo header
         BlkIOStats s{};
 
-        // --- Ler major:minor OU "Default" ---
+        // Lê o primeiro campo: major:minor ou "Default"
         std::string device;
         iss >> device;
 
+        // Procura ":" para identificar o dispositivo major/minor
         auto colon = device.find(':');
-        if (colon != std::string::npos) {
-            // Ex: "8:0"
+        if (colon != std::string::npos) { // Verifica se é como exemplo 8:0
             try {
+                // Converte parte antes dos dois pontos para major
                 s.major = std::stoul(device.substr(0, colon));
+                // Converte parte após os dois pontos para minor
                 s.minor = std::stoul(device.substr(colon + 1));
             }
             catch (...) {
-                continue; // ignora linha malformada
+                continue; // Se algo deu errado, ignora toda a linha
             }
         }
         else {
-            // Ex: "Default"
+            // Caso seja "Default": representa agregação de dispositivos
             s.major = s.minor = 0;
         }
 
-        // --- Ler key=value ---
+        // Lê todos os campos no formato key=value
         std::string kv;
         while (iss >> kv) {
+            // Procura o '=' que separa chave e valor
             auto pos = kv.find('=');
             if (pos == std::string::npos)
-                continue;
+                continue; // token inválido, ignora e vai para a próxima intereção
 
+            // Extrai chave e valor
             std::string key = kv.substr(0, pos);
             std::string valStr = kv.substr(pos + 1);
 
-            uint64_t val = 0;
+            uint64_t val = 0; // Inicializa a variável que vai receber o valor
             try {
-                val = std::stoull(valStr);
+                val = std::stoull(valStr); // Converte valor para número
             }
             catch (...) {
-                continue; // token inválido
+                continue; // Valor inválido
             }
 
+            // Armazena o valor na estrutura de BlkIO
             if (key == "rbytes") s.rbytes = val;
             else if (key == "wbytes") s.wbytes = val;
             else if (key == "rios")   s.rios = val;
@@ -287,9 +302,11 @@ std::vector<BlkIOStats> CGroupManager::readBlkIOUsage(const std::string& name) {
             else if (key == "dios")   s.dios = val;
         }
 
+        // Adiciona a estrutura preenchida ao vetor final
         list.push_back(s);
     }
 
+    // Retorna todas as estatísticas lidas
     return list;
 }
 
