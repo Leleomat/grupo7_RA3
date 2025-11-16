@@ -22,9 +22,9 @@ struct ProcessInfo {
 	std::string name;
 };
 
-bool processoExiste(int PID) {
-	std::filesystem::path dir = "/proc/" + std::to_string(PID);
-	return std::filesystem::exists(dir) && std::filesystem::is_directory(dir);
+bool processoExiste(int PID) {//Checa se o processo existe de fato
+	std::filesystem::path dir = "/proc/" + std::to_string(PID);//concatena o path do processo
+	return std::filesystem::exists(dir) && std::filesystem::is_directory(dir);//Checa existência
 }
 
 void salvarMedicoesCSV(const StatusProcesso& medicao, const calculoMedicao& calculado)
@@ -183,7 +183,7 @@ void executarExperimentos() {
 			executarExperimentoIsolamento();
 		}
 		else if (sub == 4) {
-			std::cout << "OPÇÃO AINDA NÃO IMPLEMENTADA.\n";
+			overheadMonitoramento();
 		}
 		else if (sub == 5) {
 			limitacaoIO();
