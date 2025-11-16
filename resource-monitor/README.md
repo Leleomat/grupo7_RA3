@@ -313,6 +313,8 @@ Funcionalidades Extras (Bônus) implementadas:
 - Suporte a cgroup v2 (unified hierarchy) (+5)
 
 Observações:
+- A compilação ocorreu sem warnings (`-Wall -Wextra`).
+- O usuário Leleomat (Leonardo) é o dono do repositório e quem gerenciou os Pull Requests, por isso ele tem alguns commits realizados diretamente na Main, sejam commits iniciais gerais, ou de ajuste na Main de arquivos/pastas que foram enviados para ela e não deveriam ter sido, mantendo a integridade do projeto.
 - Os contribuidores são somente os três integrantes citados no início deste README, se por ventura aparecer algum contribuidor chamado "root", somos nós, pois isso ocorreu ao utilizar comandos sudo com o git, o que ocasionou o surgimento do "root". 
 - Sobre a estrutura do projeto, temos os arquivos .py e .sh, porém como não foram necessárias suas utilizações, os arquivos existem e estão no projeto, porém vazios.
 - Este projeto foi desenvolvido para a disciplina de Sistemas de Computação (PUCPR).
