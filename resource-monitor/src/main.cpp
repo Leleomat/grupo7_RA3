@@ -16,6 +16,8 @@
 #include <iomanip>
 #include <cmath>
 #include <sys/wait.h>
+#include <fcntl.h>     
+#include <unistd.h>    
 
 namespace fs = std::filesystem;
 
@@ -194,6 +196,69 @@ void executarExperimentos() {
     } while (sub != 0);
 }
 
+pid_t createIOTestProcessAndMove(const std::string& cgName, CGroupManager& manager) {
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        perror("fork");
+        return -1;
+    }
+
+    if (pid == 0) {
+        // ---- FILHO ----
+
+        // Redireciona stdout e stderr para /dev/null
+        int devNull = open("/dev/null", O_WRONLY);
+        if (devNull >= 0) {
+            dup2(devNull, STDOUT_FILENO);
+            dup2(devNull, STDERR_FILENO);
+            close(devNull);
+        }
+
+        const size_t SIZE = 1024 * 1024; // 1 MB
+        std::vector<char> buffer(SIZE, 'X');
+
+        int fd = open("/tmp/test_io_file", O_CREAT | O_WRONLY | O_TRUNC, 0644);
+        if (fd < 0) {
+            perror("open");
+            _exit(1);
+        }
+
+        // === Primeira escrita imediata (garante blkio na 1ª leitura) ===
+        ssize_t written = write(fd, buffer.data(), SIZE);
+        if (written < 0) {
+            perror("write");
+            close(fd);
+            _exit(1);
+        }
+        fsync(fd);
+
+        // === Loop 1MB/s ===
+        while (true) {
+            sleep(1);
+            written = write(fd, buffer.data(), SIZE);
+            if (written < 0) {
+                perror("write");
+                close(fd);
+                _exit(1);
+            }
+            fsync(fd);
+        }
+    }
+
+    // ---- PAI ----
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    try {
+        manager.moveProcessToCGroup(cgName, pid);
+    }
+    catch (const std::exception& ex) {
+        std::cerr << "Erro ao mover processo p/ cgroup: " << ex.what() << "\n";
+    }
+
+    return pid;
+}
+
 // Função que faz o gerenciado do cgroup no main
 void cgroupManager() {
     // Cria uma instância do gerenciador de cgroups (objeto que encapsula operações com cgroups).
@@ -216,8 +281,34 @@ void cgroupManager() {
         return;
     }
 
-    // Solicita ao usuário escolher um PID. Chama a função escolherPID()
-    int pid = escolherPID();
+    std::cout << " 1. Escolher processo existente\n";
+    std::cout << " 2. Criar processo de teste de I/O\n";
+    std::cout << "Escolha: ";
+
+    int opc;
+    std::cin >> opc;
+
+    int pid = -1;
+
+    if (opc == 1) {
+        pid = escolherPID();
+        if (!manager.moveProcessToCGroup(cgroupName, pid)) {
+            std::cerr << "Falha ao mover o processo para o cgroup.\n";
+            return;
+        }
+        std::cout << "Processo " << pid << " movido para " << cgroupName << ".\n";
+    }
+    else if (opc == 2) {
+        pid = createIOTestProcessAndMove(cgroupName, manager);
+        if (pid <= 0) {
+            std::cerr << "Falha ao criar processo de I/O!\n";
+            return;
+        }
+    }
+    else {
+        std::cerr << "Opção inválida.\n";
+        return;
+    }
 
     // Move o processo selecionado para o cgroup; se falhar, imprime erro e retorna.
     if (!manager.moveProcessToCGroup(cgroupName, pid)) {
@@ -298,6 +389,7 @@ void cgroupManager() {
             std::cout << "Não foi possível ler a memória atual\n";
 
         std::cout << "\nEstatísticas de BlkIO:\n";
+
         auto blk = manager.readBlkIOUsage(cgroupName);
 
         if (blk.empty()) {
@@ -305,16 +397,33 @@ void cgroupManager() {
         }
         else {
             for (const auto& entry : blk) {
-                if (entry.rbytes == 0 && entry.wbytes == 0 && entry.dbytes == 0)
+
+                // Se a linha é vazia (caso raro em alguns kernels), pula
+                if (entry.rbytes == 0 &&
+                    entry.wbytes == 0 &&
+                    entry.dbytes == 0 &&
+                    entry.rios == 0 &&
+                    entry.wios == 0 &&
+                    entry.dios == 0)
+                {
                     continue;
+                }
 
-                std::cout << "  Device " << entry.major << ":" << entry.minor << "\n";
+                // Exibir nome do dispositivo
+                if (entry.major == 0 && entry.minor == 0)
+                    std::cout << "  Device Default\n";        // agregado de todos os discos
+                else
+                    std::cout << "  Device " << entry.major << ":" << entry.minor << "\n";
 
+                // Formatação de bytes
                 auto fmtBytes = [](uint64_t b) {
                     const char* suf[] = { "B", "KB", "MB", "GB", "TB" };
                     int i = 0;
-                    double v = b;
-                    while (v > 1024 && i < 4) { v /= 1024; i++; }
+                    double v = static_cast<double>(b);
+                    while (v >= 1024.0 && i < 4) {
+                        v /= 1024.0;
+                        i++;
+                    }
                     std::ostringstream oss;
                     oss << std::fixed << std::setprecision(2) << v << " " << suf[i];
                     return oss.str();
@@ -322,8 +431,10 @@ void cgroupManager() {
 
                 std::cout << "    Read:    " << fmtBytes(entry.rbytes)
                     << "  (" << entry.rios << " ops)\n";
+
                 std::cout << "    Write:   " << fmtBytes(entry.wbytes)
                     << "  (" << entry.wios << " ops)\n";
+
                 std::cout << "    Discard: " << fmtBytes(entry.dbytes)
                     << "  (" << entry.dios << " ops)\n\n";
             }
