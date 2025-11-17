@@ -4,7 +4,7 @@
 
 # Compilador e flags
 CXX := g++
-CXXFLAGS := -std=c++20 -Wall -Wextra -Iinclude
+CXXFLAGS := -std=c++23 -Wall -Wextra -Iinclude
 
 # Diretórios
 SRC_DIR := src
