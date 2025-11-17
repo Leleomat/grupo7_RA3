@@ -71,6 +71,15 @@ run-tests: all
 		./$$exe; \
 	done
 
+run-test-cpu: $(BIN_DIR)/test_cpu
+	./$(BIN_DIR)/test_cpu
+
+run-test-io: $(BIN_DIR)/test_io
+	./$(BIN_DIR)/test_io
+
+run-test-memory: $(BIN_DIR)/test_memory
+	./$(BIN_DIR)/test_memory
+
 # ============================================================
 # Fim do Makefile
 # ============================================================
